@@ -1,0 +1,76 @@
+name: pro_buddy
+description: "A goal-tracking app that monitors your app usage and helps you stay aligned with your goals."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  lottie: ^3.3.1
+  flutter_svg: ^2.0.17
+  shimmer: ^3.0.0
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Firebase
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.6.0
+  google_sign_in: ^6.2.2
+
+  # Networking
+  dio: ^5.8.0+1
+
+  # Local Storage
+  shared_preferences: ^2.5.3
+  flutter_secure_storage: ^9.2.4
+
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+
+  # Background Tasks
+  workmanager: ^0.5.2
+
+  # Utilities
+  uuid: ^4.5.1
+  intl: ^0.20.2
+  logger: ^2.5.0
+  equatable: ^2.0.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  
+  # Code generation
+  build_runner: ^2.4.14
+  riverpod_generator: ^2.6.4
+  json_serializable: ^6.9.5
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/animations/
+
+  fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito-Regular.ttf
+        - asset: assets/fonts/Nunito-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Nunito-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Nunito-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Nunito-Light.ttf
+          weight: 300
