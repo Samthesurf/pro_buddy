@@ -235,3 +235,10 @@ class AppClassification {
       'AppClassification($appName: ${category.displayName})';
 }
 
+
+
+
+
+
+
+

@@ -42,3 +42,10 @@ class UserResponse(BaseModel):
     onboarding_complete: bool = False
     created_at: datetime
 
+
+
+
+
+
+
+

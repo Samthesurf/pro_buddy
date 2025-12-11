@@ -57,3 +57,10 @@ class AssetPaths {
   static const String successAnimation = '$animations/success.json';
 }
 
+
+
+
+
+
+
+

@@ -1,30 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../bloc/chat_cubit.dart';
+import '../bloc/progress_summary_cubit.dart';
 import '../core/theme.dart';
 import '../models/chat.dart';
-import '../services/api_service.dart';
 
 /// A beautiful chat screen for daily progress tracking.
 /// Features a prominent question prompt and conversational interface.
-class ProgressChatScreen extends ConsumerStatefulWidget {
+class ProgressChatScreen extends StatefulWidget {
   const ProgressChatScreen({super.key});
 
   @override
-  ConsumerState<ProgressChatScreen> createState() => _ProgressChatScreenState();
+  State<ProgressChatScreen> createState() => _ProgressChatScreenState();
 }
 
-class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
+class _ProgressChatScreenState extends State<ProgressChatScreen>
     with TickerProviderStateMixin {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
-  
-  final List<ChatMessage> _messages = [];
-  bool _isLoading = false;
-  bool _showInitialPrompt = true;
-  
+
   late AnimationController _promptAnimationController;
   late Animation<double> _promptFadeAnimation;
   late Animation<Offset> _promptSlideAnimation;
@@ -33,7 +30,9 @@ class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
   void initState() {
     super.initState();
     _setupAnimations();
-    _loadConversationHistory();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ChatCubit>().loadHistory();
+    });
   }
 
   void _setupAnimations() {
@@ -62,26 +61,6 @@ class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
     _promptAnimationController.forward();
   }
 
-  Future<void> _loadConversationHistory() async {
-    try {
-      final response = await ApiService.instance.getChatHistory(limit: 20);
-      final messages = response['messages'] as List<dynamic>? ?? [];
-      
-      if (messages.isNotEmpty) {
-        setState(() {
-          _messages.addAll(
-            messages.map((m) => ChatMessage.fromJson(m as Map<String, dynamic>)),
-          );
-          _showInitialPrompt = false;
-        });
-        _scrollToBottom();
-      }
-    } catch (e) {
-      // Silent fail - just show empty chat
-      debugPrint('Failed to load chat history: $e');
-    }
-  }
-
   @override
   void dispose() {
     _textController.dispose();
@@ -103,91 +82,85 @@ class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
     });
   }
 
-  Future<void> _sendMessage(String text) async {
-    if (text.trim().isEmpty || _isLoading) return;
+  void _handleSend(BuildContext context, {String? presetText}) {
+    final rawText = presetText ?? _textController.text;
+    final text = rawText.trim();
+    if (text.isEmpty) return;
 
-    final userMessage = ChatMessage.user(text.trim());
-    
-    setState(() {
-      _messages.add(userMessage);
-      _isLoading = true;
-      _showInitialPrompt = false;
-    });
-    
+    final chatCubit = context.read<ChatCubit>();
+    if (chatCubit.state.isLoading) return;
+
     _textController.clear();
+    _focusNode.requestFocus();
+    chatCubit.sendMessage(text);
     _scrollToBottom();
-
-    try {
-      final response = await ApiService.instance.reportProgress(
-        message: text.trim(),
-      );
-
-      final progressResponse = ProgressReportResponse.fromJson(response);
-      
-      final assistantMessage = ChatMessage.assistant(
-        progressResponse.message,
-        encouragementType: progressResponse.encouragementType,
-        detectedTopics: progressResponse.detectedTopics,
-      );
-
-      setState(() {
-        _messages.add(assistantMessage);
-        _isLoading = false;
-      });
-      
-      _scrollToBottom();
-      
-      // Haptic feedback for encouragement
-      if (progressResponse.encouragementType == EncouragementType.celebrate) {
-        HapticFeedback.mediumImpact();
-      }
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _messages.add(ChatMessage.assistant(
-          "I'm having trouble connecting right now. Please try again in a moment.",
-          encouragementType: EncouragementType.support,
-        ));
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    return BlocConsumer<ChatCubit, ChatState>(
+      listenWhen: (previous, current) =>
+          previous.messages.length != current.messages.length ||
+          previous.isLoading != current.isLoading ||
+          previous.errorMessage != current.errorMessage,
+      listener: (context, state) {
+        _scrollToBottom();
 
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDark
-                ? [
-                    AppColors.backgroundDark,
-                    AppColors.surfaceDark,
-                  ]
-                : [
-                    AppColors.primary.withValues(alpha: 0.05),
-                    AppColors.background,
-                  ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(context),
-              Expanded(
-                child: _showInitialPrompt && _messages.isEmpty
-                    ? _buildInitialPrompt(context)
-                    : _buildChatList(context),
+        final latestMessage =
+            state.messages.isNotEmpty ? state.messages.last : null;
+        if (latestMessage?.role == MessageRole.assistant &&
+            latestMessage?.encouragementType == EncouragementType.celebrate) {
+          HapticFeedback.mediumImpact();
+        }
+
+        final error = state.errorMessage;
+        if (error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          context.read<ChatCubit>().clearError();
+        }
+      },
+      builder: (context, state) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+
+        return Scaffold(
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: isDark
+                    ? [
+                        AppColors.backgroundDark,
+                        AppColors.surfaceDark,
+                      ]
+                    : [
+                        AppColors.primary.withValues(alpha: 0.05),
+                        AppColors.background,
+                      ],
               ),
-              _buildInputArea(context),
-            ],
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  _buildHeader(context),
+                  Expanded(
+                    child: state.showInitialPrompt && state.messages.isEmpty
+                        ? _buildInitialPrompt(context)
+                        : _buildChatList(context, state),
+                  ),
+                  _buildInputArea(context, state),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -357,7 +330,7 @@ class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
       color: theme.colorScheme.surface,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
-        onTap: () => _sendMessage(text),
+        onTap: () => _handleSend(context, presetText: text),
         borderRadius: BorderRadius.circular(20),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -376,16 +349,16 @@ class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
     );
   }
 
-  Widget _buildChatList(BuildContext context) {
+  Widget _buildChatList(BuildContext context, ChatState state) {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: _messages.length + (_isLoading ? 1 : 0),
+      itemCount: state.messages.length + (state.isLoading ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index == _messages.length && _isLoading) {
+        if (index == state.messages.length && state.isLoading) {
           return _buildTypingIndicator(context);
         }
-        return _buildMessageBubble(context, _messages[index]);
+        return _buildMessageBubble(context, state.messages[index]);
       },
     );
   }
@@ -577,7 +550,7 @@ class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
     );
   }
 
-  Widget _buildInputArea(BuildContext context) {
+  Widget _buildInputArea(BuildContext context, ChatState state) {
     final theme = Theme.of(context);
 
     return Container(
@@ -622,7 +595,7 @@ class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        onSubmitted: _sendMessage,
+                        onSubmitted: (_) => _handleSend(context),
                       ),
                     ),
                     // Voice input button (placeholder)
@@ -662,10 +635,9 @@ class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
                 ],
               ),
               child: IconButton(
-                onPressed: _isLoading
-                    ? null
-                    : () => _sendMessage(_textController.text),
-                icon: _isLoading
+                onPressed:
+                    state.isLoading ? null : () => _handleSend(context),
+                icon: state.isLoading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
@@ -689,7 +661,10 @@ class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const _ProgressSummarySheet(),
+      builder: (context) => BlocProvider(
+        create: (_) => ProgressSummaryCubit()..loadSummary(),
+        child: const _ProgressSummarySheet(),
+      ),
     );
   }
 
@@ -702,124 +677,116 @@ class _ProgressChatScreenState extends ConsumerState<ProgressChatScreen>
 }
 
 /// Bottom sheet for progress summary
-class _ProgressSummarySheet extends StatefulWidget {
+class _ProgressSummarySheet extends StatelessWidget {
   const _ProgressSummarySheet();
-
-  @override
-  State<_ProgressSummarySheet> createState() => _ProgressSummarySheetState();
-}
-
-class _ProgressSummarySheetState extends State<_ProgressSummarySheet> {
-  ProgressSummary? _summary;
-  bool _isLoading = true;
-  String _selectedPeriod = 'week';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSummary();
-  }
-
-  Future<void> _loadSummary() async {
-    setState(() => _isLoading = true);
-    
-    try {
-      final response = await ApiService.instance.getProgressSummary(
-        period: _selectedPeriod,
-      );
-      setState(() {
-        _summary = ProgressSummary.fromJson(response);
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) {
-          return Column(
-            children: [
-              // Handle
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.outline,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              
-              // Header
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.insights_rounded,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Progress Summary',
-                      style: theme.textTheme.titleLarge,
-                    ),
-                    const Spacer(),
-                    // Period selector
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'today', label: Text('Today')),
-                        ButtonSegment(value: 'week', label: Text('Week')),
-                        ButtonSegment(value: 'month', label: Text('Month')),
-                      ],
-                      selected: {_selectedPeriod},
-                      onSelectionChanged: (selection) {
-                        setState(() => _selectedPeriod = selection.first);
-                        _loadSummary();
-                      },
-                      style: ButtonStyle(
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              const Divider(height: 1),
-              
-              // Content
-              Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _summary == null
-                        ? _buildEmptyState(context)
-                        : _buildSummaryContent(context, scrollController),
-              ),
-            ],
+    return BlocConsumer<ProgressSummaryCubit, ProgressSummaryState>(
+      listenWhen: (previous, current) =>
+          previous.errorMessage != current.errorMessage,
+      listener: (context, state) {
+        final error = state.errorMessage;
+        if (error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error),
+              behavior: SnackBarBehavior.floating,
+            ),
           );
-        },
-      ),
+          context.read<ProgressSummaryCubit>().clearError();
+        }
+      },
+      builder: (context, state) {
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.6,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
+            expand: false,
+            builder: (context, scrollController) {
+              return Column(
+                children: [
+                  // Handle
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.outline,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.insights_rounded,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Progress Summary',
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        const Spacer(),
+                        // Period selector
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(value: 'today', label: Text('Today')),
+                            ButtonSegment(value: 'week', label: Text('Week')),
+                            ButtonSegment(value: 'month', label: Text('Month')),
+                          ],
+                          selected: {state.selectedPeriod},
+                          onSelectionChanged: (selection) {
+                            context
+                                .read<ProgressSummaryCubit>()
+                                .changePeriod(selection.first);
+                          },
+                          style: ButtonStyle(
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                  const Divider(height: 1),
+
+                  // Content
+                  Expanded(
+                    child: state.isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : state.summary == null
+                            ? _buildEmptyState(context)
+                            : _buildSummaryContent(
+                                context,
+                                scrollController,
+                                state.summary!,
+                              ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
   Widget _buildEmptyState(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -851,9 +818,9 @@ class _ProgressSummarySheetState extends State<_ProgressSummarySheet> {
   Widget _buildSummaryContent(
     BuildContext context,
     ScrollController scrollController,
+    ProgressSummary summary,
   ) {
     final theme = Theme.of(context);
-    final summary = _summary!;
 
     return ListView(
       controller: scrollController,
@@ -900,9 +867,9 @@ class _ProgressSummarySheetState extends State<_ProgressSummarySheet> {
             ],
           ),
         ),
-        
+
         const SizedBox(height: 20),
-        
+
         // Stats row
         Row(
           children: [
@@ -927,9 +894,9 @@ class _ProgressSummarySheetState extends State<_ProgressSummarySheet> {
             ),
           ],
         ),
-        
+
         const SizedBox(height: 24),
-        
+
         // Key achievements
         if (summary.keyAchievements.isNotEmpty) ...[
           Text(
@@ -940,38 +907,38 @@ class _ProgressSummarySheetState extends State<_ProgressSummarySheet> {
           ),
           const SizedBox(height: 12),
           ...summary.keyAchievements.map((achievement) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    Icons.check,
-                    size: 16,
-                    color: AppColors.success,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    achievement,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      height: 1.4,
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.check,
+                        size: 16,
+                        color: AppColors.success,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        achievement,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          )),
+              )),
         ],
-        
+
         const SizedBox(height: 24),
-        
+
         // Recurring challenges
         if (summary.recurringChallenges.isNotEmpty) ...[
           Text(
@@ -982,34 +949,34 @@ class _ProgressSummarySheetState extends State<_ProgressSummarySheet> {
           ),
           const SizedBox(height: 12),
           ...summary.recurringChallenges.map((challenge) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    Icons.flag,
-                    size: 16,
-                    color: AppColors.warning,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    challenge,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      height: 1.4,
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.flag,
+                        size: 16,
+                        color: AppColors.warning,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        challenge,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          )),
+              )),
         ],
       ],
     );

@@ -68,3 +68,10 @@ class ProgressSummary(BaseModel):
     recurring_challenges: List[str]
     ai_insight: str
 
+
+
+
+
+
+
+

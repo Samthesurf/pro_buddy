@@ -82,3 +82,10 @@ class AppSelectionsCreate(BaseModel):
 
     apps: List[AppSelectionCreate] = Field(..., min_length=1)
 
+
+
+
+
+
+
+

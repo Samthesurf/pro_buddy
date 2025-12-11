@@ -35,3 +35,10 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
 
     return user_data
 
+
+
+
+
+
+
+

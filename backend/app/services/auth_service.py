@@ -105,3 +105,10 @@ class AuthService:
 # Singleton instance
 auth_service = AuthService()
 
+
+
+
+
+
+
+

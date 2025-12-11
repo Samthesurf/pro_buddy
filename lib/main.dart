@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
+import 'bloc/chat_cubit.dart';
 import 'core/core.dart';
 
 Future<void> main() async {
@@ -14,12 +16,19 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Initialize Firebase with generated options
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   runApp(
-    const ProviderScope(
-      child: ProBuddyApp(),
+    MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => ChatCubit(),
+        ),
+      ],
+      child: const ProBuddyApp(),
     ),
   );
 }

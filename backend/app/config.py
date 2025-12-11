@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Cloudflare
     cloudflare_account_id: str = ""
     cloudflare_api_token: str = ""
-    cloudflare_embedding_model: str = "@cf/baai/bge-base-en-v1.5"
+    cloudflare_embedding_model: str = "@cf/baai/bge-m3"
 
     # Cloudflare Vectorize
     vectorize_index_users: str = "pro-buddy-users"

@@ -75,3 +75,10 @@ class DailySummary(BaseModel):
         """Total number of app usage events."""
         return self.aligned_count + self.neutral_count + self.misaligned_count
 
+
+
+
+
+
+
+
