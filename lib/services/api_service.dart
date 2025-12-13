@@ -85,6 +85,32 @@ class ApiService {
     return response.data as Map<String, dynamic>;
   }
 
+  /// Start the goal discovery / notification profile conversation
+  Future<Map<String, dynamic>> startGoalDiscovery({bool reset = false}) async {
+    final response = await _dio.post('/onboarding/goal-discovery/start', data: {
+      'reset': reset,
+    });
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Continue the goal discovery conversation
+  Future<Map<String, dynamic>> sendGoalDiscoveryMessage({
+    required String sessionId,
+    required String message,
+  }) async {
+    final response = await _dio.post('/onboarding/goal-discovery/message', data: {
+      'session_id': sessionId,
+      'message': message,
+    });
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Get the stored notification profile (if any)
+  Future<Map<String, dynamic>> getNotificationProfile() async {
+    final response = await _dio.get('/onboarding/notification-profile');
+    return response.data as Map<String, dynamic>;
+  }
+
   // ==================== Monitoring Endpoints ====================
 
   /// Report app usage and get feedback
@@ -221,4 +247,3 @@ class ApiException implements Exception {
   @override
   String toString() => 'ApiException: $message (status: $statusCode)';
 }
-

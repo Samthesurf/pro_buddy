@@ -27,6 +27,59 @@ _usage_history_db: dict = {}
 _last_notification_time: dict = {}  # Track notification cooldowns
 
 
+def _personalize_notification_message(
+    base_message: str,
+    profile: dict,
+    app_name: str,
+    alignment: AlignmentStatus,
+) -> str:
+    """
+    Lightweight personalization using the stored notification profile.
+
+    This avoids an extra LLM call in the hot path.
+    """
+    if not profile:
+        return base_message
+
+    assistant_name = (profile.get("preferred_name_for_assistant") or "Pro Buddy").strip()
+    user_name = (profile.get("preferred_name_for_user") or "").strip()
+    identity = (profile.get("identity") or "").strip()
+    primary_goal = (profile.get("primary_goal") or "").strip()
+    why = (profile.get("why") or "").strip()
+    motivators = profile.get("motivators") or []
+    importance = profile.get("importance_1_to_5")
+    risky_apps = [str(x).strip().lower() for x in (profile.get("risky_apps") or [])]
+
+    app_l = app_name.lower()
+    is_youtube = "youtube" in app_l
+    is_risky = any(r and r in app_l for r in risky_apps)
+
+    # Only override when we're actually going to notify, and it's meaningful.
+    if alignment == AlignmentStatus.MISALIGNED and (is_youtube or is_risky):
+        name_prefix = f"Hey {user_name}," if user_name else "Hey,"
+        identity_phrase = f" a bigger {identity}" if identity else ""
+        goal_phrase = f" for {primary_goal}" if primary_goal else ""
+        importance_phrase = (
+            f" (you rated this {importance}/5)" if isinstance(importance, int) else ""
+        )
+        reason = ""
+        if why:
+            reason = f" Remember: {why}"
+        elif motivators:
+            reason = f" Remember: {motivators[0]}"
+
+        return (
+            f"{name_prefix} {assistant_name} here — is {app_name} helping you become{identity_phrase}{goal_phrase} right now{importance_phrase}?"
+            f"{reason}"
+        ).strip()
+
+    # Gentle boost for aligned notifications too (keep short)
+    if alignment == AlignmentStatus.ALIGNED and primary_goal:
+        return f"{base_message} (Nice — this supports {primary_goal}.)"
+
+    return base_message
+
+
 class AppUsageRequest(BaseModel):
     """Request for reporting app usage."""
 
@@ -57,9 +110,11 @@ async def report_app_usage(
 
     # Get user context from Cloudflare Vectorize
     user_context = {"goals": [], "app_selections": []}
+    notification_profile: dict | None = None
     if req and hasattr(req.app.state, "vectorize"):
         vectorize = req.app.state.vectorize
         user_context = await vectorize.get_user_context(uid)
+        notification_profile = await vectorize.get_notification_profile(uid)
 
     # Get or create app classification
     app_classification = None
@@ -117,6 +172,14 @@ async def report_app_usage(
         request.package_name,
         feedback_data["alignment_status"],
     )
+
+    if should_notify and notification_profile:
+        feedback_data["message"] = _personalize_notification_message(
+            feedback_data.get("message") or "Keep going!",
+            notification_profile,
+            request.app_name,
+            feedback_data["alignment_status"],
+        )
 
     # Create feedback record
     feedback = UsageFeedback(
@@ -261,4 +324,3 @@ def _should_send_notification(
         cooldown = timedelta(hours=2)
 
     return (now - last_time) > cooldown
-

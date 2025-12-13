@@ -7,6 +7,7 @@ Stores user goals, app selections, and app classifications for semantic search.
 from typing import Optional, List, Dict, Any
 import httpx
 import json
+from datetime import datetime
 
 from ..config import settings
 
@@ -566,3 +567,141 @@ class CloudflareVectorizeService:
         messages.sort(key=lambda x: x.get("timestamp", ""), reverse=False)
         return messages
 
+    # ==================== Goal Discovery (Notification Profile) ====================
+
+    async def store_goal_discovery_message(
+        self,
+        user_id: str,
+        session_id: str,
+        message_id: str,
+        role: str,
+        content: str,
+        timestamp: str,
+    ) -> None:
+        """
+        Store a goal-discovery chat message (separate from general/progress chat).
+        """
+        document = f"{role}: {content}"
+        embedding = await self._generate_embedding(document)
+
+        vector = {
+            "id": f"goalchat_{user_id}_{session_id}_{message_id}",
+            "values": embedding,
+            "metadata": {
+                "user_id": user_id,
+                "session_id": session_id,
+                "message_id": message_id,
+                "type": "goal_discovery_chat",
+                "role": role,
+                "content": content,
+                "timestamp": timestamp,
+            },
+        }
+
+        await self._upsert_vectors(self.index_name_users, [vector])
+
+    async def get_goal_discovery_history(
+        self,
+        user_id: str,
+        session_id: str,
+        n_results: int = 30,
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve goal-discovery conversation history for a session.
+        """
+        query_embedding = await self._generate_embedding(
+            f"user {user_id} goal discovery conversation session {session_id}"
+        )
+
+        results = await self._query_vectors(
+            self.index_name_users,
+            query_embedding,
+            top_k=n_results,
+            filter_metadata={
+                "user_id": {"$eq": user_id},
+                "type": {"$eq": "goal_discovery_chat"},
+                "session_id": {"$eq": session_id},
+            },
+        )
+
+        messages: List[Dict[str, Any]] = []
+        if results.get("success") and results.get("result", {}).get("matches"):
+            for match in results["result"]["matches"]:
+                metadata = match.get("metadata", {})
+                if metadata.get("type") == "goal_discovery_chat" and metadata.get(
+                    "session_id"
+                ) == session_id:
+                    messages.append(
+                        {
+                            "role": metadata.get("role"),
+                            "content": metadata.get("content"),
+                            "timestamp": metadata.get("timestamp"),
+                        }
+                    )
+
+        messages.sort(key=lambda x: x.get("timestamp", ""), reverse=False)
+        return messages
+
+    async def store_notification_profile(
+        self,
+        user_id: str,
+        profile: Dict[str, Any],
+    ) -> None:
+        """
+        Store a user's notification/goal motivation profile.
+
+        Stored as a single upserted vector so the latest profile is always retrievable.
+        """
+        profile_json = json.dumps(profile, ensure_ascii=False)
+        document = (
+            "Notification Profile\n"
+            f"Identity: {profile.get('identity') or ''}\n"
+            f"Primary goal: {profile.get('primary_goal') or ''}\n"
+            f"Why: {profile.get('why') or ''}\n"
+            f"Motivators: {', '.join(profile.get('motivators') or [])}\n"
+            f"Stakes: {profile.get('stakes') or ''}\n"
+            f"Importance: {profile.get('importance_1_to_5') or ''}/5\n"
+            f"Style: {profile.get('style') or ''}\n"
+            f"Helpful apps: {', '.join(profile.get('helpful_apps') or [])}\n"
+            f"Risky apps: {', '.join(profile.get('risky_apps') or [])}\n"
+            f"Notes: {profile.get('app_intent_notes') or ''}"
+        )
+
+        embedding = await self._generate_embedding(document)
+        vector = {
+            "id": f"notification_profile_{user_id}",
+            "values": embedding,
+            "metadata": {
+                "user_id": user_id,
+                "type": "notification_profile",
+                "profile_json": profile_json,
+                "updated_at": profile.get("updated_at")
+                or datetime.utcnow().isoformat(),
+            },
+        }
+
+        await self._upsert_vectors(self.index_name_users, [vector])
+
+    async def get_notification_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve the latest notification profile for a user.
+        """
+        results = await self._get_vectors_by_ids(
+            self.index_name_users, [f"notification_profile_{user_id}"]
+        )
+
+        if results.get("success") and results.get("result"):
+            vectors = results["result"]
+            if vectors and len(vectors) > 0:
+                metadata = vectors[0].get("metadata", {})
+                if metadata.get("type") != "notification_profile":
+                    return None
+                raw = metadata.get("profile_json") or ""
+                if not raw:
+                    return None
+                try:
+                    return json.loads(raw)
+                except Exception:
+                    return None
+
+        return None

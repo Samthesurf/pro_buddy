@@ -40,6 +40,18 @@ When responding to progress updates:
 
 Remember: You have access to their goals, so reference them when relevant."""
 
+        # System prompt for goal discovery / motivation profiling
+        self.goal_discovery_system_prompt = """You are Pro Buddy, a warm, supportive AI companion. Your job is to run a short, back-and-forth "goal discovery" conversation so the system can personalize notifications.
+
+You MUST:
+- Ask ONE question at a time (keep it short).
+- Be specific and grounded in what the user already said.
+- Help the user clarify: identity, primary goal, why it matters, motivators, stakes, and how they want to be nudged.
+- Capture app-specific intent, especially around common distraction apps (e.g., YouTube): when it's helpful vs when it becomes avoidance.
+- Keep messages concise (2-4 sentences max + ONE question).
+
+You MUST return ONLY valid JSON in the requested schema (no markdown, no extra text)."""
+
     async def classify_app(
         self,
         app_name: str,
@@ -493,4 +505,98 @@ Respond ONLY with the JSON object."""
                 "key_achievements": [],
                 "recurring_challenges": [],
                 "ai_insight": "Keep tracking your progress to see patterns over time!",
+            }
+
+    async def goal_discovery_step(
+        self,
+        user_message: Optional[str],
+        conversation_history: List[Dict[str, str]],
+        existing_profile: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Run one step of the goal-discovery conversation.
+
+        Returns JSON with:
+          - assistant_message: str
+          - done: bool
+          - profile: dict (merged/updated profile fields)
+        """
+        existing_profile = existing_profile or {}
+
+        history_text = "\n".join(
+            [f"{m['role'].upper()}: {m['content']}" for m in conversation_history[-12:]]
+        )
+
+        prompt = f"""{self.goal_discovery_system_prompt}
+
+CURRENT STORED PROFILE (may be partial):
+{json.dumps(existing_profile, ensure_ascii=False)}
+
+CONVERSATION SO FAR:
+{history_text if history_text else "(none yet)"}
+
+USER MESSAGE (may be empty if starting):
+{user_message or ""}
+
+Return ONLY JSON with this schema:
+{{
+  "assistant_message": "string",
+  "done": true|false,
+  "profile": {{
+    "identity": "string|null",
+    "primary_goal": "string|null",
+    "why": "string|null",
+    "motivators": ["string", "..."],
+    "stakes": "string|null",
+    "importance_1_to_5": 1-5|null,
+    "style": "gentle|direct|playful|mixed",
+    "preferred_name_for_user": "string|null",
+    "preferred_name_for_assistant": "string|null",
+    "helpful_apps": ["string", "..."],
+    "risky_apps": ["string", "..."],
+    "app_intent_notes": "string|null"
+  }}
+}}
+
+Rules:
+- Keep existing profile fields unless the user clearly updates them.
+- Never invent facts. If unknown, set null or empty list.
+- If you have enough info to personalize notifications (identity + primary_goal + importance + at least one motivator or stakes + style), set done=true and ask a final "confirm" question inside assistant_message.
+"""
+
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=prompt,
+            )
+
+            response_text = response.text.strip()
+            # Handle accidental markdown code blocks
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+
+            result = json.loads(response_text)
+
+            profile = result.get("profile") or {}
+            done = bool(result.get("done", False))
+            assistant_message = result.get(
+                "assistant_message",
+                "Tell me the goal you're most excited about right now — what is it?",
+            )
+
+            return {
+                "assistant_message": assistant_message,
+                "done": done,
+                "profile": profile,
+            }
+        except Exception as e:
+            print(f"Error in goal discovery step: {e}")
+            # Safe fallback: ask a sensible first question
+            return {
+                "assistant_message": "Let’s get clear on what you’re aiming for. What’s the goal that matters most to you right now?",
+                "done": False,
+                "profile": existing_profile,
             }

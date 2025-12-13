@@ -34,11 +34,3 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     return user_data
-
-
-
-
-
-
-
-

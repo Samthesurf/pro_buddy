@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/chat_cubit.dart';
 import '../bloc/progress_summary_cubit.dart';
+import '../core/routes.dart';
 import '../core/theme.dart';
 import '../models/chat.dart';
 
@@ -214,6 +215,16 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
               ],
             ),
           ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.goalDiscovery),
+            icon: const Icon(Icons.flag_rounded),
+            tooltip: 'Goal Discovery',
+            style: IconButton.styleFrom(
+              backgroundColor: theme.colorScheme.surface,
+              foregroundColor: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
           IconButton(
             onPressed: () => _showSummarySheet(context),
             icon: const Icon(Icons.insights_rounded),
@@ -1020,4 +1031,3 @@ class _ProgressSummarySheet extends StatelessWidget {
     );
   }
 }
-

@@ -50,7 +50,7 @@ def create_app() -> FastAPI:
         allow_origins=[],  # Use regex to restrict to localhost with any port
         allow_origin_regex=r"^https?://localhost(:\d+)?$",
         allow_credentials=True,
-        allow_methods=s["*"],
+        allow_methods=["*"],
         allow_headers=["*"],
     )
 
@@ -113,4 +113,3 @@ if __name__ == "__main__":
         port=settings.port,
         reload=settings.debug,
     )
-

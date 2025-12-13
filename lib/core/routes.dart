@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../screens/progress_chat_screen.dart';
+import '../screens/goal_discovery_screen.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/goal_discovery_cubit.dart';
 
 /// Route names for navigation
 class AppRoutes {
@@ -20,6 +23,7 @@ class AppRoutes {
   // Main app routes
   static const String dashboard = '/dashboard';
   static const String progressChat = '/progress';
+  static const String goalDiscovery = '/goals/discovery';
   static const String usageHistory = '/history';
   static const String settings = '/settings';
 
@@ -86,6 +90,15 @@ class AppRouter {
       case AppRoutes.progressChat:
         return _buildRoute(
           const ProgressChatScreen(),
+          settings,
+        );
+
+      case AppRoutes.goalDiscovery:
+        return _buildRoute(
+          BlocProvider(
+            create: (_) => GoalDiscoveryCubit()..start(),
+            child: const GoalDiscoveryScreen(),
+          ),
           settings,
         );
 
@@ -215,4 +228,3 @@ class _NotFoundScreen extends StatelessWidget {
     );
   }
 }
-
