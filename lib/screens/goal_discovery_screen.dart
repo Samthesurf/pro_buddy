@@ -385,4 +385,3 @@ class _InputBar extends StatelessWidget {
     );
   }
 }
-

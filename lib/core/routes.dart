@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../screens/progress_chat_screen.dart';
 import '../screens/goal_discovery_screen.dart';
+import '../screens/goals_input_screen.dart';
+import '../screens/welcome_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/goal_discovery_cubit.dart';
 
@@ -41,7 +43,7 @@ class AppRouter {
     switch (settings.name) {
       case AppRoutes.splash:
         return _buildRoute(
-          const _PlaceholderScreen(title: 'Splash'),
+          const WelcomeScreen(),
           settings,
         );
 
@@ -59,13 +61,13 @@ class AppRouter {
 
       case AppRoutes.welcome:
         return _buildRoute(
-          const _PlaceholderScreen(title: 'Welcome'),
+          const WelcomeScreen(),
           settings,
         );
 
       case AppRoutes.goalsInput:
         return _buildRoute(
-          const _PlaceholderScreen(title: 'Your Goals'),
+          const GoalsInputScreen(),
           settings,
         );
 

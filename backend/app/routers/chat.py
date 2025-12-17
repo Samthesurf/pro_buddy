@@ -307,12 +307,3 @@ async def search_progress(
             status_code=500,
             detail="Failed to search progress entries"
         )
-
-
-
-
-
-
-
-
-

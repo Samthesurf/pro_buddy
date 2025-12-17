@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Pro Buddy Theme Configuration
 /// A warm, motivational aesthetic with deep teals and warm accents
@@ -52,127 +53,110 @@ class AppColors {
 class AppTypography {
   AppTypography._();
 
-  static const String fontFamily = 'Nunito';
+  static TextStyle get displayLarge => GoogleFonts.nunito(
+        fontSize: 57,
+        fontWeight: FontWeight.w400,
+        letterSpacing: -0.25,
+        height: 1.12,
+      );
 
-  static const TextStyle displayLarge = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 57,
-    fontWeight: FontWeight.w400,
-    letterSpacing: -0.25,
-    height: 1.12,
-  );
+  static TextStyle get displayMedium => GoogleFonts.nunito(
+        fontSize: 45,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0,
+        height: 1.16,
+      );
 
-  static const TextStyle displayMedium = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 45,
-    fontWeight: FontWeight.w400,
-    letterSpacing: 0,
-    height: 1.16,
-  );
+  static TextStyle get displaySmall => GoogleFonts.nunito(
+        fontSize: 36,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0,
+        height: 1.22,
+      );
 
-  static const TextStyle displaySmall = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 36,
-    fontWeight: FontWeight.w400,
-    letterSpacing: 0,
-    height: 1.22,
-  );
+  static TextStyle get headlineLarge => GoogleFonts.nunito(
+        fontSize: 32,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
+        height: 1.25,
+      );
 
-  static const TextStyle headlineLarge = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 32,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0,
-    height: 1.25,
-  );
+  static TextStyle get headlineMedium => GoogleFonts.nunito(
+        fontSize: 28,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
+        height: 1.29,
+      );
 
-  static const TextStyle headlineMedium = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 28,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0,
-    height: 1.29,
-  );
+  static TextStyle get headlineSmall => GoogleFonts.nunito(
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
+        height: 1.33,
+      );
 
-  static const TextStyle headlineSmall = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 24,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0,
-    height: 1.33,
-  );
+  static TextStyle get titleLarge => GoogleFonts.nunito(
+        fontSize: 22,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
+        height: 1.27,
+      );
 
-  static const TextStyle titleLarge = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 22,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0,
-    height: 1.27,
-  );
+  static TextStyle get titleMedium => GoogleFonts.nunito(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.15,
+        height: 1.5,
+      );
 
-  static const TextStyle titleMedium = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.15,
-    height: 1.5,
-  );
+  static TextStyle get titleSmall => GoogleFonts.nunito(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.1,
+        height: 1.43,
+      );
 
-  static const TextStyle titleSmall = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 14,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.1,
-    height: 1.43,
-  );
+  static TextStyle get bodyLarge => GoogleFonts.nunito(
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0.5,
+        height: 1.5,
+      );
 
-  static const TextStyle bodyLarge = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 16,
-    fontWeight: FontWeight.w400,
-    letterSpacing: 0.5,
-    height: 1.5,
-  );
+  static TextStyle get bodyMedium => GoogleFonts.nunito(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0.25,
+        height: 1.43,
+      );
 
-  static const TextStyle bodyMedium = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 14,
-    fontWeight: FontWeight.w400,
-    letterSpacing: 0.25,
-    height: 1.43,
-  );
+  static TextStyle get bodySmall => GoogleFonts.nunito(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0.4,
+        height: 1.33,
+      );
 
-  static const TextStyle bodySmall = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    letterSpacing: 0.4,
-    height: 1.33,
-  );
+  static TextStyle get labelLarge => GoogleFonts.nunito(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.1,
+        height: 1.43,
+      );
 
-  static const TextStyle labelLarge = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 14,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.1,
-    height: 1.43,
-  );
+  static TextStyle get labelMedium => GoogleFonts.nunito(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.5,
+        height: 1.33,
+      );
 
-  static const TextStyle labelMedium = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 12,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.5,
-    height: 1.33,
-  );
-
-  static const TextStyle labelSmall = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.5,
-    height: 1.45,
-  );
+  static TextStyle get labelSmall => GoogleFonts.nunito(
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.5,
+        height: 1.45,
+      );
 }
 
 class AppTheme {
@@ -203,13 +187,12 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: AppColors.background,
       textTheme: _textTheme(AppColors.onSurface),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.onSurface,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: TextStyle(
-          fontFamily: AppTypography.fontFamily,
+        titleTextStyle: GoogleFonts.nunito(
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: AppColors.onSurface,
@@ -360,13 +343,12 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: AppColors.backgroundDark,
       textTheme: _textTheme(AppColors.onSurfaceDark),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: AppColors.surfaceDark,
         foregroundColor: AppColors.onSurfaceDark,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: TextStyle(
-          fontFamily: AppTypography.fontFamily,
+        titleTextStyle: GoogleFonts.nunito(
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: AppColors.onSurfaceDark,
@@ -493,4 +475,3 @@ extension CustomColors on ColorScheme {
   Color get misaligned => error;
   Color get neutral => warning;
 }
-

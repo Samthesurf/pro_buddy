@@ -81,12 +81,3 @@ class AppSelectionsCreate(BaseModel):
     """Model for bulk creating app selections."""
 
     apps: List[AppSelectionCreate] = Field(..., min_length=1)
-
-
-
-
-
-
-
-
-

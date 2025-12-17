@@ -36,7 +36,7 @@ dependencies:
   flutter_local_notifications: ^18.0.1
 
   # Background Tasks
-  workmanager: ^0.5.2
+  workmanager: ^0.9.0+3
 
   # Utilities
   uuid: ^4.5.1
@@ -48,6 +48,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
   
   # Code generation
   build_runner: ^2.4.14
@@ -60,15 +61,9 @@ flutter:
     - assets/images/
     - assets/animations/
 
-  fonts:
-    - family: Nunito
-      fonts:
-        - asset: assets/fonts/Nunito-Regular.ttf
-        - asset: assets/fonts/Nunito-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/Nunito-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/Nunito-Bold.ttf
-          weight: 700
-        - asset: assets/fonts/Nunito-Light.ttf
-          weight: 300
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/images/Hawk_logo.png
+  adaptive_icon_background: "#FFFFFF"
+  remove_alpha_ios: true

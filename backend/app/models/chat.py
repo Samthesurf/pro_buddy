@@ -67,12 +67,3 @@ class ProgressSummary(BaseModel):
     key_achievements: List[str]
     recurring_challenges: List[str]
     ai_insight: str
-
-
-
-
-
-
-
-
-

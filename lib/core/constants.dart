@@ -1,4 +1,4 @@
-/// Application constants for Pro Buddy
+// Application constants for Pro Buddy
 
 class AppConstants {
   AppConstants._();
@@ -52,16 +52,7 @@ class AssetPaths {
   static const String animations = 'assets/animations';
 
   // Specific assets
-  static const String logo = '$images/logo.png';
+  static const String logo = '$images/Hawk_logo.png';
   static const String welcomeAnimation = '$animations/welcome.json';
   static const String successAnimation = '$animations/success.json';
 }
-
-
-
-
-
-
-
-
-

@@ -153,22 +153,28 @@ async def save_goals(
         _goals_db[uid] = []
     _goals_db[uid].append(goal)
 
-    # Store in Cloudflare Vectorize
+    # Store in Cloudflare Vectorize (optional for development)
     if req and hasattr(req.app.state, "vectorize"):
-        vectorize = req.app.state.vectorize
-        await vectorize.store_user_goal(
-            user_id=uid,
-            goal_id=goal.id,
-            content=goal.content,
-            reason=goal.reason,
-        )
+        try:
+            vectorize = req.app.state.vectorize
+            await vectorize.store_user_goal(
+                user_id=uid,
+                goal_id=goal.id,
+                content=goal.content,
+                reason=goal.reason,
+            )
+        except Exception as e:
+            print(f"Warning: Failed to store goal in Vectorize: {e}")
 
-    # Generate summary with Gemini
+    # Generate summary with Gemini (optional for development)
     summary = None
     if req and hasattr(req.app.state, "gemini"):
-        gemini = req.app.state.gemini
-        goals_data = [{"content": g.content, "reason": g.reason} for g in _goals_db[uid]]
-        summary = await gemini.generate_goals_summary(goals_data)
+        try:
+            gemini = req.app.state.gemini
+            goals_data = [{"content": g.content, "reason": g.reason} for g in _goals_db[uid]]
+            summary = await gemini.generate_goals_summary(goals_data)
+        except Exception as e:
+            print(f"Warning: Failed to generate summary with Gemini: {e}")
 
     return GoalsResponse(
         goals=_goals_db[uid],
@@ -349,7 +355,10 @@ async def start_goal_discovery(
     profile = None
     if profile_dict:
         # Ensure required fields for response model
-        profile = NotificationProfile(user_id=uid, **profile_dict)
+        profile_kwargs = dict(profile_dict)
+        # Vectorize retrieval may include user_id already; avoid double-passing it.
+        profile_kwargs.pop("user_id", None)
+        profile = NotificationProfile(user_id=uid, **profile_kwargs)
 
     return GoalDiscoveryResponse(
         session_id=session_id,
@@ -444,6 +453,8 @@ async def goal_discovery_message(
     if updated_profile:
         # Ensure updated_at is a datetime for the response model
         profile_kwargs = dict(updated_profile)
+        # Vectorize retrieval may include user_id already; avoid double-passing it.
+        profile_kwargs.pop("user_id", None)
         if isinstance(profile_kwargs.get("updated_at"), str):
             try:
                 profile_kwargs["updated_at"] = datetime.fromisoformat(

@@ -75,4 +75,3 @@ class GoalDiscoveryResponse(BaseModel):
     message: str
     done: bool = False
     profile: Optional[NotificationProfile] = None
-

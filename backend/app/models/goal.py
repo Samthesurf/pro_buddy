@@ -48,12 +48,3 @@ class GoalsProfile(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-
-
-
-
-
-
-

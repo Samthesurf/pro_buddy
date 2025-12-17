@@ -41,12 +41,3 @@ class UserResponse(BaseModel):
     photo_url: Optional[str] = None
     onboarding_complete: bool = False
     created_at: datetime
-
-
-
-
-
-
-
-
-

@@ -38,12 +38,3 @@ __all__ = [
     "DailySummary",
     "AlignmentStatus",
 ]
-
-
-
-
-
-
-
-
-
