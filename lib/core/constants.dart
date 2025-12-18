@@ -8,8 +8,9 @@ class AppConstants {
   static const String appVersion = '1.0.0';
 
   // API Configuration
-  static const String baseUrl = 'http://10.0.2.2:8000/api/v1'; // Android emulator localhost
-  static const Duration apiTimeout = Duration(seconds: 30);
+  // Use localhost because we are using 'adb reverse tcp:8000 tcp:8000'
+  static const String baseUrl = 'http://127.0.0.1:8000/api/v1'; 
+  static const Duration apiTimeout = Duration(seconds: 60);
 
   // Storage Keys
   static const String tokenKey = 'firebase_token';

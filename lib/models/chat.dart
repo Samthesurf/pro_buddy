@@ -150,14 +150,3 @@ class ProgressSummary {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-

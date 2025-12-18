@@ -121,7 +121,10 @@ class _GoalsInputScreenState extends State<GoalsInputScreen> {
         ),
       );
 
-      Navigator.of(context).pushReplacementNamed(AppRoutes.goalDiscovery);
+      Navigator.of(context).pushNamed(
+        AppRoutes.goalDiscovery,
+        arguments: const {'fromOnboarding': true},
+      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

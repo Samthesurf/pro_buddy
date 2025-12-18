@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../screens/auth_screen.dart';
+import '../screens/main_screen.dart';
 import '../screens/progress_chat_screen.dart';
+import '../screens/app_selection_screen.dart';
 import '../screens/goal_discovery_screen.dart';
 import '../screens/goals_input_screen.dart';
 import '../screens/welcome_screen.dart';
@@ -49,13 +52,13 @@ class AppRouter {
 
       case AppRoutes.signIn:
         return _buildRoute(
-          const _PlaceholderScreen(title: 'Sign In'),
+          const AuthScreen(isSignIn: true),
           settings,
         );
 
       case AppRoutes.signUp:
         return _buildRoute(
-          const _PlaceholderScreen(title: 'Sign Up'),
+          const AuthScreen(isSignIn: false),
           settings,
         );
 
@@ -73,7 +76,7 @@ class AppRouter {
 
       case AppRoutes.appSelection:
         return _buildRoute(
-          const _PlaceholderScreen(title: 'Select Apps'),
+          const AppSelectionScreen(),
           settings,
         );
 
@@ -85,7 +88,7 @@ class AppRouter {
 
       case AppRoutes.dashboard:
         return _buildRoute(
-          const _PlaceholderScreen(title: 'Dashboard'),
+          const MainScreen(),
           settings,
         );
 

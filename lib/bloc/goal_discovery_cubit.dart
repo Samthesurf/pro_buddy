@@ -132,6 +132,3 @@ class GoalDiscoveryCubit extends Cubit<GoalDiscoveryState> {
     }
   }
 }
-
-
-

@@ -26,6 +26,12 @@ class TokenVerifyResponse(BaseModel):
 _users_db: dict = {}
 
 
+def update_onboarding_status(uid: str, status: bool):
+    """Update the onboarding status for a user."""
+    if uid in _users_db:
+        _users_db[uid]["onboarding_complete"] = status
+
+
 @router.post("/verify", response_model=TokenVerifyResponse)
 async def verify_token(current_user: dict = Depends(get_current_user)):
     """
@@ -83,4 +89,3 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
         onboarding_complete=user_data.get("onboarding_complete", False),
         created_at=user_data["created_at"],
     )
-

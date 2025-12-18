@@ -84,6 +84,10 @@ class CloudflareVectorizeService:
                 content=ndjson_body,
                 timeout=30.0,
             )
+            # Handle 400/404 gracefully - index may not exist yet
+            if response.status_code in (400, 404):
+                print(f"Warning: Vectorize upsert failed ({response.status_code}): {response.text}")
+                return {"success": False, "error": response.text}
             response.raise_for_status()
             return response.json()
 
@@ -127,6 +131,9 @@ class CloudflareVectorizeService:
                 json=payload,
                 timeout=30.0,
             )
+            # Handle 404 gracefully - index may not exist yet
+            if response.status_code == 404:
+                return {"success": True, "result": {"matches": []}}
             response.raise_for_status()
             return response.json()
 
@@ -152,6 +159,9 @@ class CloudflareVectorizeService:
                 json={"ids": ids},
                 timeout=30.0,
             )
+            # Handle 404 gracefully - index or vectors may not exist
+            if response.status_code == 404:
+                return {"success": True, "result": {"count": 0}}
             response.raise_for_status()
             return response.json()
 
@@ -168,7 +178,7 @@ class CloudflareVectorizeService:
             ids: List of vector IDs to retrieve
 
         Returns:
-            API response with vectors
+            API response with vectors, or empty result if not found
         """
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -177,6 +187,9 @@ class CloudflareVectorizeService:
                 json={"ids": ids},
                 timeout=30.0,
             )
+            # Handle 404 gracefully - vectors or index don't exist yet
+            if response.status_code == 404:
+                return {"success": True, "result": []}
             response.raise_for_status()
             return response.json()
 

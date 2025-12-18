@@ -6,10 +6,10 @@ Handles goal setting and app selection during onboarding.
 from typing import List
 from uuid import uuid4
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel
 
-from .auth import get_current_user
+from .auth import get_current_user, update_onboarding_status
 from ..models.goal import GoalCreate, Goal, GoalsProfile
 from ..models.app_selection import AppSelectionCreate, AppSelection, AppSelectionsCreate
 from ..models.goal_discovery import (
@@ -27,6 +27,216 @@ router = APIRouter()
 _goals_db: dict = {}
 _app_selections_db: dict = {}
 _notification_profile_db: dict = {}  # user_id -> latest profile dict (cache)
+_goal_discovery_sessions: dict = {}  # session_id -> session state (in-memory)
+
+# Goal discovery guardrails (kept intentionally small: this is onboarding UX).
+_GOAL_DISCOVERY_MAX_USER_TURNS = 8
+_GOAL_DISCOVERY_MAX_ASKS_PER_FIELD = 2
+
+
+def _is_nonempty_str(value) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _is_goal_discovery_exit_intent(message: str) -> bool:
+    """
+    Detect explicit user intent to stop/skip the goal discovery flow.
+
+    Keep this conservative so we don't misfire on normal sentences like
+    "I need to be done by Friday".
+    """
+    if not isinstance(message, str):
+        return False
+    text = message.strip().lower()
+    if not text:
+        return False
+
+    # Only treat very short messages as commands.
+    if len(text) > 24:
+        return False
+
+    commands = {
+        "exit",
+        "quit",
+        "stop",
+        "cancel",
+        "skip",
+        "skip for now",
+        "done",
+        "im done",
+        "i'm done",
+        "thats it",
+        "that's it",
+        "finished",
+        "end",
+        "end chat",
+    }
+    return text in commands
+
+
+def _is_profile_min_complete(profile: dict) -> bool:
+    """
+    "Good enough" profile to personalize notifications and proceed to app selection.
+
+    Keep this minimal and deterministic so onboarding doesn't get stuck if the model
+    fails to set done=true.
+    """
+    if not isinstance(profile, dict):
+        return False
+
+    importance = profile.get("importance_1_to_5")
+    motivators = profile.get("motivators") or []
+    stakes = profile.get("stakes")
+    style = profile.get("style")
+
+    has_motivation_signal = (
+        isinstance(motivators, list) and len([m for m in motivators if str(m).strip()]) > 0
+    ) or _is_nonempty_str(stakes)
+
+    return (
+        _is_nonempty_str(profile.get("primary_goal"))
+        and isinstance(importance, int)
+        and 1 <= importance <= 5
+        and _is_nonempty_str(style)
+        and has_motivation_signal
+    )
+
+
+def _pick_next_question_key(profile: dict, asked_counts: dict) -> str | None:
+    """
+    Choose the next question to ask, prioritizing required fields and avoiding repeats.
+    """
+    profile = profile or {}
+    asked_counts = asked_counts or {}
+
+    def asked_too_much(key: str) -> bool:
+        return int(asked_counts.get(key, 0) or 0) >= _GOAL_DISCOVERY_MAX_ASKS_PER_FIELD
+
+    # Required-ish first (to unlock app selection without stalling)
+    if not _is_nonempty_str(profile.get("primary_goal")) and not asked_too_much("primary_goal"):
+        return "primary_goal"
+
+    if not _is_nonempty_str(profile.get("why")) and not asked_too_much("why"):
+        return "why"
+
+    importance = profile.get("importance_1_to_5")
+    if not (isinstance(importance, int) and 1 <= importance <= 5) and not asked_too_much(
+        "importance_1_to_5"
+    ):
+        return "importance_1_to_5"
+
+    motivators = profile.get("motivators") or []
+    stakes = profile.get("stakes")
+    has_motivation_signal = (
+        isinstance(motivators, list) and len([m for m in motivators if str(m).strip()]) > 0
+    ) or _is_nonempty_str(stakes)
+    if not has_motivation_signal and not asked_too_much("motivators"):
+        return "motivators"
+
+    if not _is_nonempty_str(profile.get("style")) and not asked_too_much("style"):
+        return "style"
+
+    # App intent is valuable for the next screen (apps), so ask it early.
+    if not _is_nonempty_str(profile.get("app_intent_notes")) and not asked_too_much(
+        "app_intent_notes"
+    ):
+        return "app_intent_notes"
+
+    # Nice-to-haves (ask at most once or twice).
+    if not _is_nonempty_str(profile.get("identity")) and not asked_too_much("identity"):
+        return "identity"
+
+    if not _is_nonempty_str(profile.get("preferred_name_for_user")) and not asked_too_much(
+        "preferred_name_for_user"
+    ):
+        return "preferred_name_for_user"
+
+    if not _is_nonempty_str(profile.get("preferred_name_for_assistant")) and not asked_too_much(
+        "preferred_name_for_assistant"
+    ):
+        return "preferred_name_for_assistant"
+
+    return None
+
+
+def _render_question(question_key: str, profile: dict, ask_count: int) -> str:
+    profile = profile or {}
+    ask_count = max(0, int(ask_count or 0))
+
+    goal = (profile.get("primary_goal") or "").strip()
+
+    # Two variations per question (0 = first ask, 1+ = retry rephrase).
+    if question_key == "primary_goal":
+        return (
+            "Let’s start simple: what’s the single goal that matters most to you right now?"
+            if ask_count == 0
+            else "Quick reset — what’s the #1 goal you want Pro Buddy to help protect this week?"
+        )
+
+    if question_key == "why":
+        if goal:
+            return (
+                f"Why does “{goal}” matter to you personally?"
+                if ask_count == 0
+                else f"One level deeper: what would achieving “{goal}” change for you?"
+            )
+        return (
+            "Why does that goal matter to you personally?"
+            if ask_count == 0
+            else "What’s the deeper reason this goal is important to you?"
+        )
+
+    if question_key == "importance_1_to_5":
+        return (
+            "On a scale of 1–5, how important is this goal to you right now?"
+            if ask_count == 0
+            else "Just a number 1–5 is perfect: how important is this goal right now?"
+        )
+
+    if question_key == "motivators":
+        return (
+            "When you’re tempted to drift, what usually pulls you back? Give me 1–3 motivators."
+            if ask_count == 0
+            else "If you had to pick 1–2 motivators that *actually work* for you, what are they?"
+        )
+
+    if question_key == "style":
+        return (
+            "How should I nudge you: gentle, direct, playful, or a mix?"
+            if ask_count == 0
+            else "What tone works best for you — gentle, direct, playful, or mixed?"
+        )
+
+    if question_key == "app_intent_notes":
+        return (
+            "Which apps are helpful for your goal, and which tend to pull you off track? (YouTube can be either — tell me when it helps vs when it becomes avoidance.)"
+            if ask_count == 0
+            else "Any apps that are ‘good when used intentionally’ but risky when you’re tired/bored? Tell me which ones and what the boundary is."
+        )
+
+    if question_key == "identity":
+        return (
+            "When you’re at your best, what identity fits you right now (e.g., writer, builder, athlete, learner)?"
+            if ask_count == 0
+            else "If you had to label ‘the version of you you’re building’, what would it be?"
+        )
+
+    if question_key == "preferred_name_for_user":
+        return (
+            "What name should I call you in notifications?"
+            if ask_count == 0
+            else "What should I call you?"
+        )
+
+    if question_key == "preferred_name_for_assistant":
+        return (
+            "And what would you like to call me?"
+            if ask_count == 0
+            else "Want to give me a nickname?"
+        )
+
+    # Fallback (shouldn’t happen)
+    return "What would you like Pro Buddy to know so notifications feel helpful, not annoying?"
 
 
 def _merge_notification_profile(existing: dict, update: dict) -> dict:
@@ -124,9 +334,23 @@ class OnboardingCompleteResponse(BaseModel):
     goals_summary: str | None = None
 
 
+async def _bg_store_goal(vectorize, user_id: str, goal_id: str, content: str, reason: str | None):
+    """Background task to store goal in Vectorize."""
+    try:
+        await vectorize.store_user_goal(
+            user_id=user_id,
+            goal_id=goal_id,
+            content=content,
+            reason=reason,
+        )
+    except Exception as e:
+        print(f"Warning: Failed to store goal in Vectorize (background): {e}")
+
+
 @router.post("/goals", response_model=GoalsResponse)
 async def save_goals(
     request: GoalCreateRequest,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     req: Request = None,
 ):
@@ -153,18 +377,17 @@ async def save_goals(
         _goals_db[uid] = []
     _goals_db[uid].append(goal)
 
-    # Store in Cloudflare Vectorize (optional for development)
+    # Store in Cloudflare Vectorize (background task)
     if req and hasattr(req.app.state, "vectorize"):
-        try:
-            vectorize = req.app.state.vectorize
-            await vectorize.store_user_goal(
-                user_id=uid,
-                goal_id=goal.id,
-                content=goal.content,
-                reason=goal.reason,
-            )
-        except Exception as e:
-            print(f"Warning: Failed to store goal in Vectorize: {e}")
+        vectorize = req.app.state.vectorize
+        background_tasks.add_task(
+            _bg_store_goal,
+            vectorize,
+            uid,
+            goal.id,
+            goal.content,
+            goal.reason,
+        )
 
     # Generate summary with Gemini (optional for development)
     summary = None
@@ -193,9 +416,33 @@ async def get_goals(
     return GoalsResponse(goals=goals)
 
 
+async def _bg_store_app_selection(
+    vectorize,
+    user_id: str,
+    selection_id: str,
+    app_name: str,
+    package_name: str,
+    reason: str,
+    importance: int,
+):
+    """Background task to store app selection in Vectorize."""
+    try:
+        await vectorize.store_app_selection(
+            user_id=user_id,
+            selection_id=selection_id,
+            app_name=app_name,
+            package_name=package_name,
+            reason=reason,
+            importance=importance,
+        )
+    except Exception as e:
+        print(f"Warning: Failed to store app selection in Vectorize (background): {e}")
+
+
 @router.post("/apps", response_model=AppSelectionsResponse)
 async def save_app_selections(
     request: AppSelectionsCreate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     req: Request = None,
 ):
@@ -220,16 +467,18 @@ async def save_app_selections(
         )
         selections.append(selection)
 
-        # Store in Cloudflare Vectorize
+        # Store in Cloudflare Vectorize (background task)
         if req and hasattr(req.app.state, "vectorize"):
             vectorize = req.app.state.vectorize
-            await vectorize.store_app_selection(
-                user_id=uid,
-                selection_id=selection.id,
-                app_name=selection.app_name,
-                package_name=selection.package_name,
-                reason=selection.reason,
-                importance=selection.importance_rating,
+            background_tasks.add_task(
+                _bg_store_app_selection,
+                vectorize,
+                uid,
+                selection.id,
+                selection.app_name,
+                selection.package_name,
+                selection.reason,
+                selection.importance_rating,
             )
 
     # Store in memory
@@ -287,8 +536,8 @@ async def complete_onboarding(
         goals_data = [{"content": g.content, "reason": g.reason} for g in goals]
         summary = await gemini.generate_goals_summary(goals_data)
 
-    # Mark user as onboarded (in a real app, update the database)
-    # This is a placeholder - in production, update the user record
+    # Mark user as onboarded
+    update_onboarding_status(uid, True)
 
     return OnboardingCompleteResponse(
         success=True,
@@ -325,19 +574,58 @@ async def start_goal_discovery(
     elif not existing_profile:
         existing_profile = _notification_profile_db.get(uid) or {}
 
-    ai_message = "Let’s get clear on what you’re aiming for. What’s the goal that matters most to you right now?"
-    done = False
-    profile_dict = existing_profile
+    # Prefill from onboarding goals if available (reduces redundant questions).
+    # This is best-effort: never overwrite existing profile fields.
+    profile_seed = dict(existing_profile or {})
+    try:
+        goals = _goals_db.get(uid) or []
+        latest_goal = goals[-1] if goals else None
+        if latest_goal is not None:
+            seed_update = {}
+            if not _is_nonempty_str(profile_seed.get("primary_goal")) and _is_nonempty_str(
+                getattr(latest_goal, "content", None)
+            ):
+                seed_update["primary_goal"] = getattr(latest_goal, "content")
+            if not _is_nonempty_str(profile_seed.get("why")) and _is_nonempty_str(
+                getattr(latest_goal, "reason", None)
+            ):
+                seed_update["why"] = getattr(latest_goal, "reason")
+            if seed_update:
+                profile_seed = _merge_notification_profile(profile_seed, seed_update)
+    except Exception:
+        # Never fail onboarding if local goal cache isn't available.
+        pass
 
-    if gemini:
-        result = await gemini.goal_discovery_step(
-            user_message=None,
-            conversation_history=[],
-            existing_profile=existing_profile,
+    profile_dict = dict(profile_seed or {})
+    done = _is_profile_min_complete(profile_dict)
+
+    asked: dict = {}
+    if done:
+        ai_message = (
+            "Nice — I already have enough to personalize your notifications. "
+            "If you want to refine anything, just tell me what to change. "
+            "Otherwise, you can continue to app selection."
         )
-        ai_message = result.get("assistant_message", ai_message)
-        done = bool(result.get("done", False))
-        profile_dict = _merge_notification_profile(existing_profile, result.get("profile") or {})
+    else:
+        q_key = _pick_next_question_key(profile_dict, asked) or "primary_goal"
+        ai_message = _render_question(q_key, profile_dict, asked.get(q_key, 0))
+        asked[q_key] = int(asked.get(q_key, 0) or 0) + 1
+
+    # Create in-memory session state for robust, non-repeating flow.
+    now_iso = datetime.utcnow().isoformat()
+    _goal_discovery_sessions[session_id] = {
+        "user_id": uid,
+        "messages": [
+            {
+                "role": "assistant",
+                "content": ai_message,
+                "timestamp": now_iso,
+            }
+        ],
+        "asked": asked,
+        "turns": 0,
+        "created_at": now_iso,
+    }
 
     # Cache locally and store assistant message for RAG/history
     _notification_profile_db[uid] = profile_dict
@@ -396,6 +684,79 @@ async def goal_discovery_message(
             n_results=30,
         )
 
+    # In-memory session state (preferred for deterministic ordering + anti-repeat).
+    session = _goal_discovery_sessions.get(body.session_id)
+    if not isinstance(session, dict) or session.get("user_id") != uid:
+        # Re-hydrate best-effort from Vectorize if available.
+        session = {
+            "user_id": uid,
+            "messages": list(history or []),
+            "asked": {},
+            "turns": 0,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        # Approximate turns if we have any history.
+        if session["messages"]:
+            session["turns"] = len([m for m in session["messages"] if m.get("role") == "user"])
+        _goal_discovery_sessions[body.session_id] = session
+
+    # Conservative early-exit: user explicitly wants to stop/skip.
+    if _is_goal_discovery_exit_intent(body.message):
+        ai_message = (
+            "All good — we can stop here. You can always refine this later. "
+            "Go ahead and continue to app selection when you're ready."
+        )
+
+        # Store user message in memory + Vectorize
+        now_iso = datetime.utcnow().isoformat()
+        session_messages = session.get("messages") or []
+        session_messages.append({"role": "user", "content": body.message, "timestamp": now_iso})
+        session_messages.append({"role": "assistant", "content": ai_message, "timestamp": now_iso})
+        session["messages"] = session_messages
+        session["turns"] = int(session.get("turns", 0) or 0) + 1
+
+        if vectorize:
+            await vectorize.store_goal_discovery_message(
+                user_id=uid,
+                session_id=body.session_id,
+                message_id=str(uuid4()),
+                role="user",
+                content=body.message,
+                timestamp=now_iso,
+            )
+            await vectorize.store_goal_discovery_message(
+                user_id=uid,
+                session_id=body.session_id,
+                message_id=str(uuid4()),
+                role="assistant",
+                content=ai_message,
+                timestamp=now_iso,
+            )
+
+        # Return done=true with whatever profile we currently have.
+        updated_profile = dict(existing_profile or {})
+        _notification_profile_db[uid] = updated_profile or {}
+
+        profile = None
+        if updated_profile:
+            profile_kwargs = dict(updated_profile)
+            profile_kwargs.pop("user_id", None)
+            if isinstance(profile_kwargs.get("updated_at"), str):
+                try:
+                    profile_kwargs["updated_at"] = datetime.fromisoformat(
+                        profile_kwargs["updated_at"]
+                    )
+                except Exception:
+                    profile_kwargs["updated_at"] = datetime.utcnow()
+            profile = NotificationProfile(user_id=uid, **profile_kwargs)
+
+        return GoalDiscoveryResponse(
+            session_id=body.session_id,
+            message=ai_message,
+            done=True,
+            profile=profile,
+        )
+
     # Store user message in RAG/history
     if vectorize:
         await vectorize.store_goal_discovery_message(
@@ -407,21 +768,45 @@ async def goal_discovery_message(
             timestamp=datetime.utcnow().isoformat(),
         )
 
-    ai_message = "Thanks — tell me a bit more about why that matters to you."
-    done = False
+    # For Gemini context, prefer full ordered in-memory session history.
+    history_for_model = session.get("messages") or history or []
+    history_for_model = history_for_model[-12:]
+
+    # Append user message to in-memory session state (after capturing model history).
+    now_iso = datetime.utcnow().isoformat()
+    session_messages = session.get("messages") or []
+    session_messages.append({"role": "user", "content": body.message, "timestamp": now_iso})
+    session["messages"] = session_messages
+    session["turns"] = int(session.get("turns", 0) or 0) + 1
+
     updated_profile = existing_profile
+    gemini_profile_update = {}
 
     if gemini:
         result = await gemini.goal_discovery_step(
             user_message=body.message,
-            conversation_history=history,
+            conversation_history=history_for_model,
             existing_profile=existing_profile,
         )
-        ai_message = result.get("assistant_message", ai_message)
-        done = bool(result.get("done", False))
+        gemini_profile_update = result.get("profile") or {}
         updated_profile = _merge_notification_profile(
-            existing_profile, result.get("profile") or {}
+            existing_profile, gemini_profile_update
         )
+
+    # Lightweight deterministic parsing for key fields (helps when model is flaky).
+    manual_update: dict = {}
+    raw = (body.message or "").strip()
+    if raw.isdigit():
+        n = int(raw)
+        if 1 <= n <= 5:
+            manual_update["importance_1_to_5"] = n
+
+    style_token = raw.lower()
+    if style_token in {"gentle", "direct", "playful", "mixed", "mix"}:
+        manual_update["style"] = "mixed" if style_token == "mix" else style_token
+
+    if manual_update:
+        updated_profile = _merge_notification_profile(updated_profile or {}, manual_update)
 
     # Always stamp update time when we have any profile content
     if updated_profile is not None:
@@ -438,7 +823,38 @@ async def goal_discovery_message(
             to_store["updated_at"] = to_store["updated_at"].isoformat()
         await vectorize.store_notification_profile(uid, to_store)
 
-    # Store assistant message
+    # Determine whether we are done (deterministic guardrails).
+    hard_stop = int(session.get("turns", 0) or 0) >= _GOAL_DISCOVERY_MAX_USER_TURNS
+    done = _is_profile_min_complete(updated_profile or {}) or hard_stop
+
+    asked = session.get("asked") or {}
+    next_key = None if done else _pick_next_question_key(updated_profile or {}, asked)
+    if next_key is None:
+        # If we can't find another useful question, end the flow.
+        done = True
+
+    if done:
+        ai_message = (
+            "Perfect — that’s enough for me to personalize your nudges. "
+            "Next, select the apps that help (and the ones that distract) so we can be smarter about notifications."
+        )
+        if hard_stop and not _is_profile_min_complete(updated_profile or {}):
+            ai_message = (
+                "Thanks — that’s enough for now. We can refine this later. "
+                "Next, select the apps that help (and the ones that distract)."
+            )
+    else:
+        ask_count = int(asked.get(next_key, 0) or 0)
+        ai_message = _render_question(next_key, updated_profile or {}, ask_count)
+        asked[next_key] = ask_count + 1
+        session["asked"] = asked
+
+    # Append assistant message to in-memory session state.
+    session_messages = session.get("messages") or []
+    session_messages.append({"role": "assistant", "content": ai_message, "timestamp": now_iso})
+    session["messages"] = session_messages
+
+    # Store assistant message (Vectorize)
     if vectorize:
         await vectorize.store_goal_discovery_message(
             user_id=uid,
@@ -446,7 +862,7 @@ async def goal_discovery_message(
             message_id=str(uuid4()),
             role="assistant",
             content=ai_message,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=now_iso,
         )
 
     profile = None

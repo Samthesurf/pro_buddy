@@ -523,6 +523,14 @@ Respond ONLY with the JSON object."""
         """
         existing_profile = existing_profile or {}
 
+        # Serialize profile safely, converting datetime to ISO strings
+        def _json_serial(obj):
+            if hasattr(obj, 'isoformat'):
+                return obj.isoformat()
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+        profile_json = json.dumps(existing_profile, ensure_ascii=False, default=_json_serial)
+
         history_text = "\n".join(
             [f"{m['role'].upper()}: {m['content']}" for m in conversation_history[-12:]]
         )
@@ -530,7 +538,7 @@ Respond ONLY with the JSON object."""
         prompt = f"""{self.goal_discovery_system_prompt}
 
 CURRENT STORED PROFILE (may be partial):
-{json.dumps(existing_profile, ensure_ascii=False)}
+{profile_json}
 
 CONVERSATION SO FAR:
 {history_text if history_text else "(none yet)"}

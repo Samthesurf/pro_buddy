@@ -1,0 +1,129 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import 'auth_state.dart';
+
+class AuthCubit extends Cubit<AuthState> {
+  final AuthService _authService;
+  late StreamSubscription<User?> _userSubscription;
+
+  AuthCubit({AuthService? authService})
+      : _authService = authService ?? AuthService.instance,
+        super(AuthState.initial()) {
+    _init();
+  }
+
+  void _init() {
+    _userSubscription = _authService.authStateChanges.listen((user) async {
+      if (user != null) {
+        // Fetch user profile to check onboarding status
+        try {
+          final profile = await ApiService.instance.getUserProfile();
+          final isOnboardingComplete = profile['onboarding_complete'] as bool? ?? false;
+          emit(AuthState.authenticated(user, isOnboardingComplete: isOnboardingComplete));
+        } catch (e) {
+          // If fetch fails (e.g. backend down or user not created yet),
+          // default to false (show onboarding) to be safe for new users.
+          // For existing users with network issues, this might force onboarding check again
+          // which is acceptable or we could add a "checkLater" logic.
+          // For now, assume false.
+          print('Error fetching user profile: $e');
+          emit(AuthState.authenticated(user, isOnboardingComplete: false));
+        }
+      } else {
+        emit(AuthState.unauthenticated());
+      }
+    });
+  }
+
+  Future<void> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    emit(state.copyWith(isLoading: true, errorMessage: null));
+    try {
+      await _authService.signInWithEmail(email: email, password: password);
+      // State updated via stream listener
+    } catch (e) {
+      emit(state.copyWith(
+        isLoading: false,
+        errorMessage: _mapErrorToMessage(e),
+      ));
+    }
+  }
+
+  Future<void> signUpWithEmail({
+    required String email,
+    required String password,
+    required String name,
+  }) async {
+    emit(state.copyWith(isLoading: true, errorMessage: null));
+    try {
+      await _authService.signUpWithEmail(
+          email: email, password: password, name: name);
+      // State updated via stream listener
+    } catch (e) {
+      emit(state.copyWith(
+        isLoading: false,
+        errorMessage: _mapErrorToMessage(e),
+      ));
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    emit(state.copyWith(isLoading: true, errorMessage: null));
+    try {
+      final user = await _authService.signInWithGoogle();
+      if (user == null) {
+        // User cancelled
+        emit(state.copyWith(isLoading: false));
+      }
+      // State updated via stream listener
+    } catch (e) {
+      emit(state.copyWith(
+        isLoading: false,
+        errorMessage: _mapErrorToMessage(e),
+      ));
+    }
+  }
+
+  Future<void> signOut() async {
+    emit(state.copyWith(isLoading: true));
+    try {
+      await _authService.signOut();
+    } catch (_) {
+      // Ignore errors on sign out
+    }
+    // State updated via stream listener
+  }
+
+  String _mapErrorToMessage(dynamic error) {
+    if (error is FirebaseAuthException) {
+      switch (error.code) {
+        case 'user-not-found':
+          return 'No user found for that email.';
+        case 'wrong-password':
+          return 'Wrong password provided for that user.';
+        case 'email-already-in-use':
+          return 'The account already exists for that email.';
+        case 'invalid-email':
+          return 'The email address is not valid.';
+        case 'weak-password':
+          return 'The password provided is too weak.';
+        default:
+          return 'Authentication failed. Please try again.';
+      }
+    }
+    return error.toString();
+  }
+
+  @override
+  Future<void> close() {
+    _userSubscription.cancel();
+    return super.close();
+  }
+}

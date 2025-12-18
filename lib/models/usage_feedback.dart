@@ -208,14 +208,3 @@ class DailyUsageSummary {
     };
   }
 }
-
-
-
-
-
-
-
-
-
-
-

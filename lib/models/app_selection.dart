@@ -234,14 +234,3 @@ class AppClassification {
   String toString() =>
       'AppClassification($appName: ${category.displayName})';
 }
-
-
-
-
-
-
-
-
-
-
-

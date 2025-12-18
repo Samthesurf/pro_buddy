@@ -17,6 +17,16 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  bool _didAutoNavigate = false;
+
+  bool get _fromOnboarding {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map) {
+      return args['fromOnboarding'] == true;
+    }
+    return false;
+  }
+
   @override
   void dispose() {
     _textController.dispose();
@@ -50,6 +60,7 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
       listenWhen: (prev, curr) =>
           prev.messages.length != curr.messages.length ||
           prev.isLoading != curr.isLoading ||
+          prev.done != curr.done ||
           prev.errorMessage != curr.errorMessage,
       listener: (context, state) {
         _scrollToBottom();
@@ -59,6 +70,17 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
             SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
           );
           context.read<GoalDiscoveryCubit>().clearError();
+        }
+
+        if (_fromOnboarding &&
+            state.done &&
+            !state.isLoading &&
+            !_didAutoNavigate) {
+          _didAutoNavigate = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Navigator.of(context).pushNamed(AppRoutes.appSelection);
+          });
         }
       },
       builder: (context, state) {
@@ -86,7 +108,13 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
             child: SafeArea(
               child: Column(
                 children: [
-                  _Header(title: title),
+                  _Header(
+                    title: title,
+                    showSkipToApps: _fromOnboarding,
+                    onSkipToApps: () => Navigator.of(context).pushNamed(
+                      AppRoutes.appSelection,
+                    ),
+                  ),
                   Expanded(
                     child: ListView.builder(
                       controller: _scrollController,
@@ -118,10 +146,10 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
           floatingActionButton: state.done
               ? FloatingActionButton.extended(
                   onPressed: () => Navigator.of(context).pushNamed(
-                    AppRoutes.progressChat,
+                    AppRoutes.appSelection,
                   ),
-                  label: const Text('Back to Progress'),
-                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('Next: Select Apps'),
+                  icon: const Icon(Icons.apps_rounded),
                 )
               : null,
         );
@@ -131,9 +159,15 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.title});
+  const _Header({
+    required this.title,
+    this.showSkipToApps = false,
+    this.onSkipToApps,
+  });
 
   final String title;
+  final bool showSkipToApps;
+  final VoidCallback? onSkipToApps;
 
   @override
   Widget build(BuildContext context) {
@@ -181,6 +215,18 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          if (showSkipToApps) ...[
+            IconButton(
+              tooltip: 'Skip to app selection',
+              onPressed: onSkipToApps,
+              icon: const Icon(Icons.fast_forward_rounded),
+              style: IconButton.styleFrom(
+                backgroundColor: theme.colorScheme.surface,
+                foregroundColor: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           IconButton(
             tooltip: 'Restart',
             onPressed: () => context.read<GoalDiscoveryCubit>().start(reset: true),
