@@ -3,14 +3,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 // import 'package:flutter_svg/flutter_svg.dart';
 import '../bloc/auth_cubit.dart';
 import '../bloc/auth_state.dart';
-// import '../core/routes.dart';
+import '../core/routes.dart';
+import '../services/api_service.dart';
 
 class AuthScreen extends StatefulWidget {
   final bool isSignIn;
+  final Map<String, dynamic>? onboardingData;
 
   const AuthScreen({
     super.key,
     this.isSignIn = true,
+    this.onboardingData,
   });
 
   @override
@@ -23,11 +26,31 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+  bool _isSavingData = false;
+  bool _hasSaveError = false;
 
   @override
   void initState() {
     super.initState();
     _isSignIn = widget.isSignIn;
+
+    // Check if we are already authenticated when entering this screen with data
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = context.read<AuthCubit>().state;
+      if (state.status == AuthStatus.authenticated) {
+        _handleAuthenticated(state);
+      }
+    });
+  }
+
+  Map<String, dynamic>? get _onboardingData {
+    if (widget.onboardingData != null) return widget.onboardingData;
+    // We access ModalRoute safely here as this getter is called in build/listener
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic>) {
+      return args;
+    }
+    return null;
   }
 
   @override
@@ -54,6 +77,49 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _handleAuthenticated(AuthState state) async {
+    if (_isSavingData || _hasSaveError) return;
+
+    // Check for deferred onboarding data
+    final data = _onboardingData;
+    if (data != null) {
+      setState(() {
+        _isSavingData = true;
+        _hasSaveError = false;
+      });
+
+      try {
+        // Save the deferred goals
+        await ApiService.instance.saveGoals(
+          content: data['content'],
+          reason: data['reason'],
+          timeline: data['timeline'],
+        );
+
+        if (!mounted) return;
+
+        // Continue to Goal Discovery
+        Navigator.of(context).pushReplacementNamed(
+          AppRoutes.goalDiscovery,
+          arguments: const {'fromOnboarding': true},
+        );
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isSavingData = false;
+          _hasSaveError = true;
+        });
+      }
+    } else {
+      // Standard flow
+      if (state.isOnboardingComplete) {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+      } else {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.welcome);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -66,9 +132,63 @@ class _AuthScreenState extends State<AuthScreen> {
                 backgroundColor: Theme.of(context).colorScheme.error,
               ),
             );
+          } else if (state.status == AuthStatus.authenticated) {
+            _handleAuthenticated(state);
           }
         },
         builder: (context, state) {
+          // If we are authenticated and have data, we are either saving or failed to save.
+          // We should not show the login form.
+          if (state.status == AuthStatus.authenticated && _onboardingData != null) {
+            if (_hasSaveError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    const Text('Failed to save your goals.'),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: () {
+                        setState(() => _hasSaveError = false);
+                        _handleAuthenticated(state);
+                      },
+                      child: const Text('Retry'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () {
+                         // Skip saving and go to dashboard/discovery
+                         Navigator.of(context).pushReplacementNamed(
+                            AppRoutes.dashboard,
+                         );
+                      },
+                      child: const Text('Skip & Continue'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Setting up your profile...'),
+                ],
+              ),
+            );
+          }
+
+          if (_isSavingData) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
           return SafeArea(
             child: Center(
               child: SingleChildScrollView(
