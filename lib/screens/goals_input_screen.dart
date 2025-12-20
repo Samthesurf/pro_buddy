@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../core/constants.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
-import '../services/api_service.dart';
 
 class GoalsInputScreen extends StatefulWidget {
   const GoalsInputScreen({super.key});
@@ -103,41 +102,15 @@ class _GoalsInputScreenState extends State<GoalsInputScreen> {
   }
 
   Future<void> _saveGoals() async {
-    setState(() => _isSaving = true);
-
-    try {
-      await ApiService.instance.saveGoals(
-        content: _goalController.text.trim(),
-        reason: _reasonController.text.trim(),
-        timeline: _timelineController.text.trim(),
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Saved!'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-
-      Navigator.of(context).pushNamed(
-        AppRoutes.goalDiscovery,
-        arguments: const {'fromOnboarding': true},
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to save. Please try again.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
+    // Navigate to Auth screen, passing goals as arguments
+    Navigator.of(context).pushNamed(
+      AppRoutes.signUp, // We direct to Sign Up flow
+      arguments: {
+        'content': _goalController.text.trim(),
+        'reason': _reasonController.text.trim(),
+        'timeline': _timelineController.text.trim(),
+      },
+    );
   }
 
   @override

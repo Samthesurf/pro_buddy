@@ -24,6 +24,10 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
     if (args is Map) {
       return args['fromOnboarding'] == true;
     }
+    // If not explicitly passed, assume true if we are in an initial discovery flow?
+    // Actually, checking history or just defaulting to false is safer.
+    // But since we just finished auth and pushed here, we passed 'fromOnboarding': true in AuthScreen.
+    // So this should be fine.
     return false;
   }
 

@@ -85,7 +85,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         Navigator.of(context).pushReplacementNamed(AppRoutes.welcome);
       }
     } else if (state.status == AuthStatus.unauthenticated) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.signIn);
+      Navigator.of(context).pushReplacementNamed(AppRoutes.welcome);
     }
   }
 
