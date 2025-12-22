@@ -24,9 +24,16 @@ class AuthService:
                 firebase_admin.initialize_app(cred)
                 AuthService._initialized = True
             except Exception as e:
-                print(f"Firebase initialization error: {e}")
-                # For development, allow running without Firebase
-                print("Running without Firebase authentication")
+                if settings.debug:
+                    print(f"Firebase initialization error: {e}")
+                    print("Running without Firebase authentication (DEBUG=true)")
+                else:
+                    # Fail fast in production so we don't accidentally run with dev auth.
+                    raise RuntimeError(
+                        "Firebase Admin SDK failed to initialize. "
+                        "Provide valid credentials (FIREBASE_CREDENTIALS_PATH) "
+                        "or set DEBUG=true for local development."
+                    ) from e
 
     def verify_token(self, id_token: str) -> Optional[Dict[str, Any]]:
         """
@@ -39,12 +46,14 @@ class AuthService:
             Decoded token data if valid, None otherwise
         """
         if not AuthService._initialized:
-            # Development mode - return mock user
-            return {
-                "uid": "dev_user_123",
-                "email": "dev@example.com",
-                "name": "Developer",
-            }
+            # In DEBUG mode, callers can choose to treat missing Firebase as a dev user.
+            if settings.debug:
+                return {
+                    "uid": "dev_user_123",
+                    "email": "dev@example.com",
+                    "name": "Developer",
+                }
+            return None
 
         try:
             decoded_token = auth.verify_id_token(id_token)
@@ -75,11 +84,13 @@ class AuthService:
             User data if found, None otherwise
         """
         if not AuthService._initialized:
-            return {
-                "uid": uid,
-                "email": "dev@example.com",
-                "display_name": "Developer",
-            }
+            if settings.debug:
+                return {
+                    "uid": uid,
+                    "email": "dev@example.com",
+                    "display_name": "Developer",
+                }
+            return None
 
         try:
             user = auth.get_user(uid)

@@ -8,7 +8,7 @@ import 'bloc/auth_cubit.dart';
 import 'bloc/auth_state.dart';
 import 'bloc/chat_cubit.dart';
 import 'core/core.dart';
-import 'core/routes.dart';
+// import 'core/routes.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

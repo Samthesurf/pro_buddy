@@ -1,0 +1,29 @@
+# Python caches / artifacts
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual envs (do not bake into images)
+venv/
+.venv/
+ENV/
+env/
+pro_buddy/
+
+# Local data / secrets
+.env
+.env.*
+firebase-credentials.json
+*-firebase-adminsdk-*.json
+chroma_data/
+logs/
+*.log
+
+# VCS / editor
+.git/
+.idea/
+.vscode/

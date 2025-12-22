@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Request, Query
 from pydantic import BaseModel
 
 from .auth import get_current_user
+from ..config import settings
 from ..models.usage import (
     AppUsageEvent,
     UsageFeedback,
@@ -17,12 +18,13 @@ from ..models.usage import (
     DailySummary,
     AlignmentStatus,
 )
+from ..services.usage_store_service import usage_store_service
 
 
 router = APIRouter()
 
 
-# Simple in-memory storage (replace with database in production)
+# Simple in-memory storage (fallback when D1 Worker isn't configured)
 _usage_history_db: dict = {}
 _last_notification_time: dict = {}  # Track notification cooldowns
 
@@ -167,11 +169,35 @@ async def report_app_usage(
         )
 
     # Determine if we should send a notification (rate limiting)
-    should_notify = _should_send_notification(
-        uid,
-        request.package_name,
-        feedback_data["alignment_status"],
-    )
+    should_notify = False
+    alignment_status: AlignmentStatus = feedback_data["alignment_status"]
+    if usage_store_service.configured:
+        # Persist cooldowns in D1 via Worker (no in-memory growth).
+        try:
+            if alignment_status == AlignmentStatus.ALIGNED:
+                cooldown_seconds = int(settings.encouraging_cooldown_hours) * 60 * 60
+            elif alignment_status == AlignmentStatus.MISALIGNED:
+                cooldown_seconds = int(settings.reminder_cooldown_minutes) * 60
+            else:
+                cooldown_seconds = 2 * 60 * 60
+
+            should_notify = await usage_store_service.check_and_set_cooldown(
+                user_id=uid,
+                package_name=request.package_name,
+                alignment=alignment_status,
+                cooldown_seconds=cooldown_seconds,
+            )
+        except Exception as e:
+            # Fail closed to avoid notification spam when storage is down.
+            print(f"Warning: failed to check cooldown via usage store worker: {e}")
+            should_notify = False
+    else:
+        # Fallback: in-memory cooldowns (dev-only / when Worker not configured).
+        should_notify = _should_send_notification(
+            uid,
+            request.package_name,
+            alignment_status,
+        )
 
     if should_notify and notification_profile:
         feedback_data["message"] = _personalize_notification_message(
@@ -194,15 +220,22 @@ async def report_app_usage(
         notification_sent=should_notify,
     )
 
-    # Store in history
-    if uid not in _usage_history_db:
-        _usage_history_db[uid] = []
-    _usage_history_db[uid].append(feedback)
+    if usage_store_service.configured:
+        # Persist history in D1 via Worker (no in-memory growth).
+        try:
+            await usage_store_service.store_usage_feedback(feedback)
+        except Exception as e:
+            print(f"Warning: failed to store usage feedback via usage store worker: {e}")
+    else:
+        # Store in history (in-memory fallback)
+        if uid not in _usage_history_db:
+            _usage_history_db[uid] = []
+        _usage_history_db[uid].append(feedback)
 
-    # Update last notification time if we're notifying
-    if should_notify:
-        key = f"{uid}_{request.package_name}_{feedback_data['alignment_status'].value}"
-        _last_notification_time[key] = datetime.utcnow()
+        # Update last notification time if we're notifying
+        if should_notify:
+            key = f"{uid}_{request.package_name}_{alignment_status.value}"
+            _last_notification_time[key] = datetime.utcnow()
 
     return UsageFeedbackResponse(
         aligned=feedback_data["aligned"],
@@ -222,6 +255,20 @@ async def get_usage_history(
 ):
     """Get usage history with feedback."""
     uid = current_user["uid"]
+    if usage_store_service.configured:
+        try:
+            items = await usage_store_service.get_usage_history(
+                user_id=uid,
+                start_date=start_date,
+                end_date=end_date,
+                limit=limit,
+            )
+            history = [UsageFeedback(**item) for item in items]
+            return UsageHistoryResponse(items=history, total=len(history))
+        except Exception as e:
+            print(f"Warning: failed to read usage history via usage store worker: {e}")
+            return UsageHistoryResponse(items=[], total=0)
+
     history = _usage_history_db.get(uid, [])
 
     # Filter by date range
@@ -255,11 +302,23 @@ async def get_daily_summary(
     day_start = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     day_end = day_start + timedelta(days=1)
 
-    # Filter history for this day
-    history = _usage_history_db.get(uid, [])
-    day_history = [
-        h for h in history if day_start <= h.created_at < day_end
-    ]
+    if usage_store_service.configured:
+        try:
+            items = await usage_store_service.get_usage_history(
+                user_id=uid,
+                start_date=day_start,
+                end_date=day_end,  # inclusive in worker; we'll re-filter below
+                limit=5000,
+            )
+            history = [UsageFeedback(**item) for item in items]
+        except Exception as e:
+            print(f"Warning: failed to read summary history via usage store worker: {e}")
+            history = []
+    else:
+        history = _usage_history_db.get(uid, [])
+
+    # Filter history for this day (keep end exclusive)
+    day_history = [h for h in history if day_start <= h.created_at < day_end]
 
     # Count by alignment
     aligned_count = sum(1 for h in day_history if h.alignment == AlignmentStatus.ALIGNED)
@@ -305,8 +364,6 @@ def _should_send_notification(
     Returns:
         True if notification should be sent
     """
-    from ..config import settings
-
     key = f"{user_id}_{package_name}_{alignment.value}"
     last_time = _last_notification_time.get(key)
 

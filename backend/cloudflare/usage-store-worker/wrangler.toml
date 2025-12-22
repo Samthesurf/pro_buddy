@@ -1,0 +1,15 @@
+name = "pro-buddy-usage-store"
+main = "src/index.js"
+compatibility_date = "2025-12-21"
+
+# D1 binding (fill in database_id after `wrangler d1 create ...`)
+[[d1_databases]]
+binding = "DB"
+database_name = "pro-buddy"
+database_id = "b2fe4a67-d5f3-460f-ba1d-a5d0a7c07d2a"
+migrations_dir = "migrations"
+
+# IMPORTANT:
+# Store the shared secret with:
+#   wrangler secret put WORKER_TOKEN
+# Do not hardcode secrets in this file.

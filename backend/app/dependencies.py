@@ -5,6 +5,7 @@ Shared FastAPI dependencies.
 from typing import Optional
 from fastapi import Header, HTTPException
 
+from .config import settings
 from .services.auth_service import auth_service, AuthService
 
 
@@ -21,17 +22,9 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     Raises:
         HTTPException: If token is invalid or missing
     """
-    # In development mode (Firebase not initialized), allow requests without auth
-    if not AuthService._initialized:
-        if not authorization:
-            # Return a default dev user when no auth header is provided
-            return {
-                "uid": "dev_user_123",
-                "email": "dev@example.com",
-                "name": "Developer",
-            }
-        # If auth header is provided, still try to verify it
-        if not authorization.startswith("Bearer "):
+    # Development mode: only allow unauthenticated requests when DEBUG=true.
+    if settings.debug and not AuthService._initialized:
+        if not authorization or not authorization.startswith("Bearer "):
             return {
                 "uid": "dev_user_123",
                 "email": "dev@example.com",
@@ -44,7 +37,14 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
             "email": "dev@example.com",
             "name": "Developer",
         }
-    
+
+    # If Firebase isn't initialized and we're not in DEBUG, fail closed.
+    if not AuthService._initialized:
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication is not configured on the server",
+        )
+
     # Production mode - require authentication
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header required")

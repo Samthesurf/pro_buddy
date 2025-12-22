@@ -37,6 +37,9 @@ flutter pub get
 flutter run
 ```
 
+## Deploy — Oracle Always Free (recommended for “always-on”)
+See `backend/DEPLOY_ORACLE.md`.
+
 ## Current status / notes
 - Data is in-memory today (clears on backend restart). Plan to add a real database.
 - AI and embeddings need valid Gemini + Cloudflare credentials; otherwise responses fall back to defaults or fail.

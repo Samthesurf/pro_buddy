@@ -4,10 +4,24 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      # Bind only to localhost; expose publicly via a reverse proxy (Caddy/Nginx).
+      - "127.0.0.1:8000:8000"
     environment:
-      - DEBUG=true
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # Defaults are dev-friendly; override via a local `.env` file or shell env vars.
+      - DEBUG=${DEBUG:-true}
+      - FIREBASE_CREDENTIALS_PATH=${FIREBASE_CREDENTIALS_PATH:-/app/firebase-credentials.json}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+      - CLOUDFLARE_EMBEDDING_MODEL=${CLOUDFLARE_EMBEDDING_MODEL:-@cf/baai/bge-m3}
+      - VECTORIZE_INDEX_USERS=${VECTORIZE_INDEX_USERS:-pro-buddy-users}
+      - VECTORIZE_INDEX_APPS=${VECTORIZE_INDEX_APPS:-pro-buddy-apps}
+      - USAGE_STORE_WORKER_URL=${USAGE_STORE_WORKER_URL:-}
+      - USAGE_STORE_WORKER_TOKEN=${USAGE_STORE_WORKER_TOKEN:-}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
+      - ENCOURAGING_COOLDOWN_HOURS=${ENCOURAGING_COOLDOWN_HOURS:-1}
+      - REMINDER_COOLDOWN_MINUTES=${REMINDER_COOLDOWN_MINUTES:-15}
     volumes:
       - ./chroma_data:/app/chroma_data
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro

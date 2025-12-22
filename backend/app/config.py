@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     vectorize_index_users: str = "pro-buddy-users"
     vectorize_index_apps: str = "pro-buddy-apps"
 
+    # Usage history persistence (Cloudflare Worker + D1)
+    # If set, the backend will store usage history + cooldowns via the Worker
+    # instead of keeping in-memory dictionaries.
+    usage_store_worker_url: str = ""
+    usage_store_worker_token: str = ""
+
     # Rate Limiting
     rate_limit_per_minute: int = 60
 
@@ -58,4 +64,3 @@ def get_settings() -> Settings:
 
 # Export for easy access
 settings = get_settings()
-
