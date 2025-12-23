@@ -8,8 +8,8 @@ class AppConstants {
   static const String appVersion = '1.0.0';
 
   // API Configuration
-  // Use localhost because we are using 'adb reverse tcp:8000 tcp:8000'
-  static const String baseUrl = 'http://127.0.0.1:8000/api/v1'; 
+  // Use reverse proxy domain
+  static const String baseUrl = 'https://hawkbuddy.92.5.59.163.sslip.io/api/v1'; 
   static const Duration apiTimeout = Duration(seconds: 60);
 
   // Storage Keys
@@ -51,9 +51,24 @@ class AssetPaths {
 
   static const String images = 'assets/images';
   static const String animations = 'assets/animations';
+  static const String onboarding = '$images/onboarding';
+  static const String habits = '$images/habits';
 
   // Specific assets
   static const String logo = '$images/Hawk_logo.png';
   static const String welcomeAnimation = '$animations/welcome.json';
   static const String successAnimation = '$animations/success.json';
+
+  // Onboarding assets
+  static const String hawkHero = '$onboarding/hawk_hero.png';
+
+  // Habit card images
+  static const String habitDeepWork = '$habits/guy_on_laptop.png';
+  static const String habitMorningPlanning = '$habits/open_book_1.png';
+  static const String habitWeeklyReview = '$habits/weekly_checklist.png';
+  static const String habitPhoneFree = '$habits/locker_pen_phone.png';
+  static const String habitNotificationDetox = '$habits/do_not_disturb.png';
+  static const String habitJournaling = '$habits/book_pen_blue_towel.png';
+  static const String habitEveningShutdown = '$habits/closing_laptop.png';
+  static const String habitPomodoro = '$habits/pomodoro.png';
 }

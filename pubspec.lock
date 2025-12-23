@@ -217,13 +217,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.11"
-  device_apps:
-    dependency: "direct main"
-    description:
-      path: "packages/device_apps"
-      relative: true
-    source: path
-    version: "2.2.0"
   dio:
     dependency: "direct main"
     description:
@@ -559,6 +552,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.6.0"
+  installed_apps:
+    dependency: "direct main"
+    description:
+      name: installed_apps
+      sha256: a111e54eb48d84db5680871c25b1d6fbe7d044baf5c262d97d9d18c1b769e196
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.0"
   intl:
     dependency: "direct main"
     description:

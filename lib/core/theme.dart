@@ -12,6 +12,13 @@ class AppColors {
   static const Color primaryLight = Color(0xFF14A3A8);
   static const Color primaryDark = Color(0xFF095052);
 
+  // Onboarding color palette
+  static const Color onboardingBlue = Color(0xFF1A4CFF);
+  static const Color onboardingBlueDark = Color(0xFF0D2B99);
+  static const Color onboardingBurgundyLight = Color(0xFF4A1942);
+  static const Color onboardingBurgundyDark = Color(0xFF2D0F29);
+  static const Color onboardingCyan = Color(0xFF00D4FF);
+
   // Accent - Warm coral for encouragement and energy
   static const Color accent = Color(0xFFE8505B);
   static const Color accentLight = Color(0xFFFF6B6B);

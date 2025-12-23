@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:device_apps/device_apps.dart';
+import 'package:installed_apps/installed_apps.dart';
+import 'package:installed_apps/app_info.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
-import '../models/app_selection.dart';
 import '../services/api_service.dart';
 
 class AppSelectionScreen extends StatefulWidget {
@@ -13,7 +13,7 @@ class AppSelectionScreen extends StatefulWidget {
 }
 
 class _AppSelectionScreenState extends State<AppSelectionScreen> {
-  List<Application> _installedApps = [];
+  List<AppInfo> _installedApps = [];
   final Set<String> _selectedPackageNames = {};
   final Map<String, String> _appReasons = {};
   bool _isLoading = true;
@@ -27,17 +27,17 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
 
   Future<void> _fetchApps() async {
     try {
-      final apps = await DeviceApps.getInstalledApplications(
-        includeAppIcons: true,
-        includeSystemApps: true,
-        onlyAppsWithLaunchIntent: true,
+      final apps = await InstalledApps.getInstalledApps(
+        excludeSystemApps: false,
+        excludeNonLaunchableApps: true,
+        withIcon: true,
       );
       
       // Filter out our own app if needed
       // apps.removeWhere((app) => app.packageName == 'com.example.pro_buddy');
 
       setState(() {
-        _installedApps = apps..sort((a, b) => a.appName.compareTo(b.appName));
+        _installedApps = apps..sort((a, b) => a.name.compareTo(b.name));
         _isLoading = false;
       });
     } catch (e) {
@@ -46,7 +46,7 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
     }
   }
 
-  void _toggleAppSelection(Application app) {
+  void _toggleAppSelection(AppInfo app) {
     setState(() {
       if (_selectedPackageNames.contains(app.packageName)) {
         _selectedPackageNames.remove(app.packageName);
@@ -58,13 +58,13 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
     });
   }
 
-  Future<void> _showReasonDialog(Application app) async {
+  Future<void> _showReasonDialog(AppInfo app) async {
     final controller = TextEditingController();
     final reason = await showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text('Why use ${app.appName}?'),
+        title: Text('Why use ${app.name}?'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -121,7 +121,7 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
           .where((app) => _selectedPackageNames.contains(app.packageName))
           .map((app) => {
                 'package_name': app.packageName,
-                'app_name': app.appName,
+                'app_name': app.name,
                 'reason': _appReasons[app.packageName] ?? '',
                 'importance_rating': 5, // Default for now
               })
@@ -198,10 +198,10 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
                       final isSelected = _selectedPackageNames.contains(app.packageName);
                       
                       return ListTile(
-                        leading: app is ApplicationWithIcon
-                            ? Image.memory(app.icon, width: 40, height: 40)
+                        leading: app.icon != null
+                            ? Image.memory(app.icon!, width: 40, height: 40)
                             : const Icon(Icons.android),
-                        title: Text(app.appName),
+                        title: Text(app.name),
                         subtitle: isSelected
                             ? Text(
                                 _appReasons[app.packageName] ?? '',

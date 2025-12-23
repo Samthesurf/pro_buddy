@@ -7,6 +7,10 @@ import '../screens/app_selection_screen.dart';
 import '../screens/goal_discovery_screen.dart';
 import '../screens/goals_input_screen.dart';
 import '../screens/welcome_screen.dart';
+import '../screens/onboarding/splash_screen.dart';
+import '../screens/onboarding/quiz_screen.dart';
+import '../screens/onboarding/challenges_screen.dart';
+import '../screens/onboarding/routine_builder_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/goal_discovery_cubit.dart';
 
@@ -19,7 +23,13 @@ class AppRoutes {
   static const String signIn = '/sign-in';
   static const String signUp = '/sign-up';
 
-  // Onboarding routes
+  // New onboarding flow
+  static const String onboardingSplash = '/onboarding/splash';
+  static const String onboardingQuiz = '/onboarding/quiz';
+  static const String onboardingChallenges = '/onboarding/challenges';
+  static const String onboardingRoutine = '/onboarding/routine';
+
+  // Legacy onboarding routes (kept for compatibility)
   static const String welcome = '/onboarding/welcome';
   static const String goalsInput = '/onboarding/goals';
   static const String appSelection = '/onboarding/apps';
@@ -44,9 +54,34 @@ class AppRouter {
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
+      // New onboarding flow - make splash the entry point
       case AppRoutes.splash:
         return _buildRoute(
-          const WelcomeScreen(),
+          const OnboardingSplashScreen(),
+          settings,
+        );
+
+      case AppRoutes.onboardingSplash:
+        return _buildRoute(
+          const OnboardingSplashScreen(),
+          settings,
+        );
+
+      case AppRoutes.onboardingQuiz:
+        return _buildRoute(
+          const OnboardingQuizScreen(),
+          settings,
+        );
+
+      case AppRoutes.onboardingChallenges:
+        return _buildRoute(
+          const OnboardingChallengesScreen(),
+          settings,
+        );
+
+      case AppRoutes.onboardingRoutine:
+        return _buildRoute(
+          const OnboardingRoutineBuilderScreen(),
           settings,
         );
 
@@ -62,6 +97,7 @@ class AppRouter {
           settings,
         );
 
+      // Legacy onboarding routes
       case AppRoutes.welcome:
         return _buildRoute(
           const WelcomeScreen(),
