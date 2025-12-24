@@ -32,11 +32,6 @@ class _MainScreenState extends State<MainScreen> {
             AppRoutes.signIn,
             (route) => false,
           );
-        } else if (state.status == AuthStatus.authenticated && !state.isOnboardingComplete) {
-           Navigator.of(context).pushNamedAndRemoveUntil(
-            AppRoutes.welcome,
-            (route) => false,
-          );
         }
       },
       child: Scaffold(

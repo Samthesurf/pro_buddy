@@ -204,7 +204,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         _handleBackPressed(context);
       },
@@ -300,6 +300,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
+              //triple ai icon
               Icons.auto_awesome,
               color: Colors.white,
               size: 20,

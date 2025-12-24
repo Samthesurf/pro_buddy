@@ -140,6 +140,11 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
                   _Header(
                     title: title,
                     showSkipToApps: _fromOnboarding,
+                    showSkipOnboarding: _fromOnboarding,
+                    onSkipOnboarding: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                      AppRoutes.dashboard,
+                      (route) => false,
+                    ),
                     onSkipToApps: () => Navigator.of(context).pushNamed(
                       AppRoutes.appSelection,
                     ),
@@ -191,11 +196,15 @@ class _Header extends StatelessWidget {
   const _Header({
     required this.title,
     this.showSkipToApps = false,
+    this.showSkipOnboarding = false,
+    this.onSkipOnboarding,
     this.onSkipToApps,
   });
 
   final String title;
   final bool showSkipToApps;
+  final bool showSkipOnboarding;
+  final VoidCallback? onSkipOnboarding;
   final VoidCallback? onSkipToApps;
 
   @override
@@ -244,6 +253,18 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          if (showSkipOnboarding) ...[
+            IconButton(
+              tooltip: 'Skip onboarding',
+              onPressed: onSkipOnboarding,
+              icon: const Icon(Icons.skip_next_rounded),
+              style: IconButton.styleFrom(
+                backgroundColor: theme.colorScheme.surface,
+                foregroundColor: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           if (showSkipToApps) ...[
             IconButton(
               tooltip: 'Skip to app selection',

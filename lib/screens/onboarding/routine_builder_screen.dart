@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../bloc/auth_cubit.dart';
+import '../../bloc/auth_state.dart';
 import '../../core/routes.dart';
 import '../../models/onboarding_data.dart';
+import '../../services/onboarding_storage.dart';
 import '../../widgets/habit_card.dart';
 import '../../widgets/onboarding_button.dart';
 
@@ -53,6 +57,20 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
     );
   }
 
+  Future<void> _skipOnboarding() async {
+    await OnboardingStorage.setHasSeenOnboarding(true);
+    if (!mounted) return;
+
+    final authStatus = context.read<AuthCubit>().state.status;
+    final targetRoute =
+        authStatus == AuthStatus.authenticated ? AppRoutes.dashboard : AppRoutes.signIn;
+
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      targetRoute,
+      (route) => false,
+    );
+  }
+
   List<Habit> get _filteredHabits => OnboardingHabits.byCategory(_selectedCategory);
 
   @override
@@ -67,24 +85,33 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
           children: [
             const SizedBox(height: 12),
             
-            // Back button
+            // Top row
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    shape: BoxShape.circle,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.chevron_left,
+                        color: Colors.black87,
+                        size: 28,
+                      ),
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.chevron_left,
-                    color: Colors.black87,
-                    size: 28,
+                  TextButton(
+                    onPressed: _skipOnboarding,
+                    child: const Text('Skip'),
                   ),
-                ),
+                ],
               ),
             ),
             
@@ -199,4 +226,3 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
     );
   }
 }
-

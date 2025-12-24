@@ -45,8 +45,8 @@ class Settings(BaseSettings):
     # Usage history persistence (Cloudflare Worker + D1)
     # If set, the backend will store usage history + cooldowns via the Worker
     # instead of keeping in-memory dictionaries.
-    usage_store_worker_url: str = ""
-    usage_store_worker_token: str = ""
+    usage_store_worker_url: str = "https://pro-buddy-usage-store.hawkbuddy.workers.dev"
+    usage_store_worker_token: str = "sammysurf"
 
     # Rate Limiting
     rate_limit_per_minute: int = 60

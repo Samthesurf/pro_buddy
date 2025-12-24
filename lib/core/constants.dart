@@ -16,6 +16,7 @@ class AppConstants {
   static const String tokenKey = 'firebase_token';
   static const String userIdKey = 'user_id';
   static const String onboardingCompleteKey = 'onboarding_complete';
+  static const String onboardingSeenKey = 'onboarding_seen';
   static const String appCacheKey = 'app_classifications_cache';
 
   // Monitoring Configuration

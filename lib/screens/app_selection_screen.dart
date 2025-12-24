@@ -155,6 +155,24 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
     }
   }
 
+  Future<void> _skipOnboarding() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    try {
+      await ApiService.instance.completeOnboarding();
+    } catch (e) {
+      debugPrint('Error skipping onboarding: $e');
+      // Still allow the user to continue; they explicitly chose to skip.
+    }
+
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutes.dashboard,
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -173,6 +191,10 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
                 ),
               ),
             ),
+          ),
+          TextButton(
+            onPressed: _isSaving ? null : _skipOnboarding,
+            child: const Text('Skip'),
           ),
         ],
       ),

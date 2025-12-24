@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/onboarding_storage.dart';
 import 'auth_state.dart';
 
 class AuthCubit extends Cubit<AuthState> {
@@ -20,6 +21,10 @@ class AuthCubit extends Cubit<AuthState> {
   void _init() {
     _userSubscription = _authService.authStateChanges.listen((user) async {
       if (user != null) {
+        // Once a user signs in on this install, we should never show onboarding again
+        // (onboarding is only for brand new installs/users).
+        await OnboardingStorage.setHasSeenOnboarding(true);
+
         // Fetch user profile to check onboarding status
         try {
           final profile = await ApiService.instance.getUserProfile();

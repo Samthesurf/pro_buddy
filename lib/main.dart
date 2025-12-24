@@ -9,6 +9,7 @@ import 'bloc/auth_state.dart';
 import 'bloc/chat_cubit.dart';
 import 'bloc/progress_score_cubit.dart';
 import 'core/core.dart';
+import 'services/onboarding_storage.dart';
 // import 'core/routes.dart';
 
 Future<void> main() async {
@@ -72,6 +73,8 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  bool _didNavigate = false;
+
   @override
   void initState() {
     super.initState();
@@ -81,17 +84,23 @@ class _AuthWrapperState extends State<AuthWrapper> {
     });
   }
 
-  void _checkAuth(AuthState state) {
+  Future<void> _checkAuth(AuthState state) async {
+    if (_didNavigate || !mounted) return;
+
     if (state.status == AuthStatus.authenticated) {
-      if (state.isOnboardingComplete) {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
-      } else {
-        // User is authenticated but hasn't completed onboarding
-        Navigator.of(context).pushReplacementNamed(AppRoutes.onboardingSplash);
-      }
+      // Logged-in users always go straight to the dashboard.
+      _didNavigate = true;
+      Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
     } else if (state.status == AuthStatus.unauthenticated) {
-      // New user - start with new onboarding flow
-      Navigator.of(context).pushReplacementNamed(AppRoutes.onboardingSplash);
+      // Onboarding is only for truly new installs. Returning (logged-out) users
+      // go straight to auth.
+      final hasSeenOnboarding = await OnboardingStorage.hasSeenOnboarding();
+      if (!mounted) return;
+
+      _didNavigate = true;
+      Navigator.of(context).pushReplacementNamed(
+        hasSeenOnboarding ? AppRoutes.signIn : AppRoutes.onboardingSplash,
+      );
     }
   }
 

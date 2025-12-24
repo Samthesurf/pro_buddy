@@ -156,11 +156,7 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } else {
       // Standard flow - no onboarding data passed
-      if (state.isOnboardingComplete) {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
-      } else {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.welcome);
-      }
+      Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
     }
   }
 

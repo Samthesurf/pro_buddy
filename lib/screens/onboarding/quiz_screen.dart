@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../bloc/auth_cubit.dart';
+import '../../bloc/auth_state.dart';
 import '../../core/routes.dart';
 import '../../models/onboarding_data.dart';
+import '../../services/onboarding_storage.dart';
 import '../../widgets/circular_gauge.dart';
 import '../../widgets/onboarding_button.dart';
 import '../../widgets/onboarding_progress_bar.dart';
@@ -46,6 +50,20 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
 
   void _skipQuiz() {
     _finishQuiz();
+  }
+
+  Future<void> _skipOnboarding() async {
+    await OnboardingStorage.setHasSeenOnboarding(true);
+    if (!mounted) return;
+
+    final authStatus = context.read<AuthCubit>().state.status;
+    final targetRoute =
+        authStatus == AuthStatus.authenticated ? AppRoutes.dashboard : AppRoutes.signIn;
+
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      targetRoute,
+      (route) => false,
+    );
   }
 
   void _finishQuiz() {
@@ -181,8 +199,13 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
         
         const SizedBox(width: 12),
         
-        // Placeholder for symmetry (could add language selector like reference)
-        const SizedBox(width: 40),
+        TextButton(
+          onPressed: _skipOnboarding,
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.white.withValues(alpha: 0.9),
+          ),
+          child: const Text('Skip'),
+        ),
       ],
     );
   }
@@ -397,4 +420,3 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
     );
   }
 }
-

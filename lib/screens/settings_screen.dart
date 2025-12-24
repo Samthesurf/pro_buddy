@@ -42,7 +42,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       setState(() {
         _goals = futures[0];
-        _profile = futures[1];
+        
+        // Handle potential nesting of profile data
+        var profileData = futures[1];
+        print('Profile data raw: $profileData'); // Debug log
+
+        if (profileData.containsKey('profile') && profileData['profile'] is Map) {
+          try {
+            profileData = Map<String, dynamic>.from(profileData['profile'] as Map);
+            print('Unwrapped profile data: $profileData');
+          } catch (e) {
+            print('Error unwrapping profile data: $e');
+            // Fallback to raw data if casting fails
+          }
+        }
+        _profile = profileData;
+
+
         _preferences = futures[2];
         _isLoading = false;
       });
@@ -200,8 +216,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildGoalsCard() {
     final goalsList = (_goals?['goals'] as List<dynamic>?) ?? [];
     final profile = _profile;
-    final primaryGoal = profile?['primary_goal'] as String?;
-    final why = profile?['why'] as String?;
+    
+    // Try both snake_case (standard) and camelCase (potential mismatch)
+    final primaryGoal = (profile?['primary_goal'] as String?) ?? 
+                       (profile?['primaryGoal'] as String?);
+    
+    // Check for 'why' or 'reason'
+    final why = (profile?['why'] as String?) ?? 
+                (profile?['reason'] as String?);
+
+    print('Building Goals Card. Primary: "$primaryGoal", Why: "$why"'); // Debug log
 
     return Card(
       child: Padding(

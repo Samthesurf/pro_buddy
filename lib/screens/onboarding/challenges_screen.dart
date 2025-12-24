@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../bloc/auth_cubit.dart';
+import '../../bloc/auth_state.dart';
 import '../../core/routes.dart';
 import '../../models/onboarding_data.dart';
+import '../../services/onboarding_storage.dart';
 import '../../widgets/onboarding_button.dart';
 
 /// Multi-select challenges screen with categorized options.
@@ -48,6 +52,20 @@ class _OnboardingChallengesScreenState extends State<OnboardingChallengesScreen>
     );
   }
 
+  Future<void> _skipOnboarding() async {
+    await OnboardingStorage.setHasSeenOnboarding(true);
+    if (!mounted) return;
+
+    final authStatus = context.read<AuthCubit>().state.status;
+    final targetRoute =
+        authStatus == AuthStatus.authenticated ? AppRoutes.dashboard : AppRoutes.signIn;
+
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      targetRoute,
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
@@ -70,24 +88,36 @@ class _OnboardingChallengesScreenState extends State<OnboardingChallengesScreen>
             children: [
               const SizedBox(height: 12),
               
-              // Back button
+              // Top row
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.chevron_left,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.chevron_left,
-                      color: Colors.white,
-                      size: 28,
+                    TextButton(
+                      onPressed: _skipOnboarding,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white.withValues(alpha: 0.9),
+                      ),
+                      child: const Text('Skip'),
                     ),
-                  ),
+                  ],
                 ),
               ),
               
@@ -259,4 +289,3 @@ class _ChallengeOption extends StatelessWidget {
     );
   }
 }
-
