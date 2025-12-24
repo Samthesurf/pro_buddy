@@ -244,6 +244,33 @@ export default {
       });
     }
 
+    if (path === "/v1/progress-score/history") {
+      if (request.method !== "GET") return methodNotAllowed();
+
+      const userId = url.searchParams.get("user_id") || "";
+      if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+      const limit = clampInt(Number(url.searchParams.get("limit") || 30), 1, 100);
+
+      const sql =
+        "SELECT user_id, date_utc, score_percent, reason, updated_at_ms " +
+        "FROM progress_scores WHERE user_id = ? " +
+        "ORDER BY date_utc DESC LIMIT ?";
+
+      const res = await env.DB.prepare(sql).bind(userId, limit).all();
+      const rows = (res && res.results) || [];
+
+      const items = rows.map((r) => ({
+        user_id: r.user_id,
+        date_utc: r.date_utc,
+        score_percent: Number(r.score_percent),
+        reason: String(r.reason || ""),
+        updated_at: new Date(Number(r.updated_at_ms)).toISOString(),
+      }));
+
+      return json({ items, total: items.length });
+    }
+
     if (path === "/v1/progress-score/upsert") {
       if (request.method !== "POST") return methodNotAllowed();
 

@@ -10,7 +10,7 @@ import 'bloc/chat_cubit.dart';
 import 'bloc/progress_score_cubit.dart';
 import 'core/core.dart';
 import 'services/onboarding_storage.dart';
-// import 'core/routes.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

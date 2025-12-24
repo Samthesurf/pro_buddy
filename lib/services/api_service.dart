@@ -280,6 +280,14 @@ class ApiService {
     final response = await _dio.get('/chat/progress-score/latest');
     return response.data as Map<String, dynamic>;
   }
+
+  /// Get progress score history (for streak calculation)
+  Future<Map<String, dynamic>> getProgressScoreHistory({int limit = 30}) async {
+    final response = await _dio.get('/chat/progress-score/history', queryParameters: {
+      'limit': limit,
+    });
+    return response.data as Map<String, dynamic>;
+  }
 }
 
 /// Interceptor to add Firebase auth token to requests

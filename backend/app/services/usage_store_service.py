@@ -171,6 +171,37 @@ class UsageStoreService:
                 return None
             return item
 
+    async def get_progress_score_history(
+        self,
+        *,
+        user_id: str,
+        limit: int = 30,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch recent progress scores for a user (for streak calculation).
+
+        Returns:
+            List of dicts with keys: user_id, date_utc, score_percent, reason, updated_at
+            Ordered by date_utc DESC (most recent first).
+        """
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        params: Dict[str, Any] = {"user_id": user_id, "limit": int(limit)}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                self._url("/v1/progress-score/history"),
+                headers=self._headers(),
+                params=params,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            items = data.get("items") or []
+            if not isinstance(items, list):
+                return []
+            return items
+
     async def upsert_progress_score(
         self,
         *,

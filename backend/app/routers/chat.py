@@ -23,6 +23,7 @@ from ..models.progress_score import (
     LatestProgressScoreResponse,
     ProgressScoreItem,
 )
+from pydantic import BaseModel
 from ..dependencies import get_current_user
 from ..services.usage_store_service import usage_store_service
 
@@ -463,3 +464,53 @@ async def get_latest_progress_score(
     except Exception as e:
         print(f"Error getting latest progress score: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve progress score")
+
+
+class ProgressScoreHistoryResponse(BaseModel):
+    items: List[ProgressScoreItem]
+    total: int
+
+
+@router.get("/progress-score/history", response_model=ProgressScoreHistoryResponse)
+async def get_progress_score_history(
+    request: Request,
+    limit: int = 30,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Get recent progress scores for the user (for streak calculation).
+    """
+    user_id = user["uid"]
+
+    if not usage_store_service.configured:
+        return ProgressScoreHistoryResponse(items=[], total=0)
+
+    try:
+        items_raw = await usage_store_service.get_progress_score_history(
+            user_id=user_id, limit=limit
+        )
+        
+        items = []
+        for item in items_raw:
+            updated_at = None
+            raw_updated_at = item.get("updated_at")
+            if isinstance(raw_updated_at, str) and raw_updated_at:
+                try:
+                    updated_at = datetime.fromisoformat(raw_updated_at.replace("Z", "+00:00"))
+                except Exception:
+                    updated_at = None
+
+            items.append(
+                ProgressScoreItem(
+                    user_id=user_id,
+                    date_utc=str(item.get("date_utc") or ""),
+                    score_percent=int(item.get("score_percent") or 0),
+                    reason=str(item.get("reason") or ""),
+                    updated_at=updated_at,
+                )
+            )
+
+        return ProgressScoreHistoryResponse(items=items, total=len(items))
+    except Exception as e:
+        print(f"Error getting progress score history: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve progress score history")

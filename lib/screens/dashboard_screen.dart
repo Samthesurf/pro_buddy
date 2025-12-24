@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
 import '../bloc/progress_score_cubit.dart';
+import '../bloc/progress_streak_cubit.dart';
+import '../bloc/onboarding_preferences_cubit.dart';
+import '../bloc/daily_usage_summary_cubit.dart';
+import '../bloc/usage_history_cubit.dart';
+import '../models/usage_feedback.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -10,30 +16,41 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          _buildAppBar(context),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            sliver: SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  _buildGoalAlignmentScore(context),
-                  const SizedBox(height: 24),
-                  _buildStreakSection(context),
-                  const SizedBox(height: 24),
-                  _buildTimeAllocation(context),
-                  const SizedBox(height: 24),
-                ],
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await Future.wait([
+            context.read<ProgressScoreCubit>().loadLatest(),
+            context.read<ProgressStreakCubit>().loadStreak(),
+            context.read<OnboardingPreferencesCubit>().loadPreferences(),
+            context.read<DailyUsageSummaryCubit>().loadSummary(),
+            context.read<UsageHistoryCubit>().loadHistory(limit: 20),
+          ]);
+        },
+        child: CustomScrollView(
+          slivers: [
+            _buildAppBar(context),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    _buildGoalAlignmentScore(context),
+                    const SizedBox(height: 24),
+                    _buildStreakSection(context),
+                    const SizedBox(height: 24),
+                    _buildTimeAllocation(context),
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
             ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: _buildRecentActivity(context),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 80)), // Bottom padding
-        ],
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: _buildRecentActivity(context),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 80)),
+          ],
+        ),
       ),
       floatingActionButton: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -214,10 +231,11 @@ class DashboardScreen extends StatelessWidget {
                 ? reason
                 : (state.isLoading
                     ? 'Updating your score...'
-                    : 'Save today’s progress chat to generate a score.'),
+                    : 'Log your progress today to get a score.'),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Colors.white.withValues(alpha: 0.9),
             ),
+            textAlign: TextAlign.center,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
@@ -230,26 +248,52 @@ class DashboardScreen extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _buildInfoCard(
-            context,
-            icon: Icons.local_fire_department_rounded,
-            value: '5',
-            label: 'Day Streak',
-            color: AppColors.accent,
+          child: BlocBuilder<ProgressStreakCubit, ProgressStreakState>(
+            builder: (context, state) {
+              return _buildInfoCard(
+                context,
+                icon: Icons.local_fire_department_rounded,
+                value: state.isLoading ? '...' : '${state.streak}',
+                label: 'Day Streak',
+                color: AppColors.accent,
+                isEmpty: state.streak == 0 && !state.isLoading,
+                emptyMessage: 'Start logging',
+              );
+            },
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _buildInfoCard(
-            context,
-            icon: Icons.timer_rounded,
-            value: '4.5h',
-            label: 'Productive Time',
-            color: AppColors.success,
+          child: BlocBuilder<OnboardingPreferencesCubit, OnboardingPreferencesState>(
+            builder: (context, state) {
+              final icon = _getProductiveTimeIcon(state.productiveTime);
+              return _buildInfoCard(
+                context,
+                icon: icon,
+                value: state.isLoading ? '...' : state.productiveTime,
+                label: 'Productive Time',
+                color: AppColors.success,
+                isEmpty: false,
+              );
+            },
           ),
         ),
       ],
     );
+  }
+
+  IconData _getProductiveTimeIcon(String time) {
+    switch (time.toLowerCase()) {
+      case 'morning':
+        return Icons.wb_sunny_rounded;
+      case 'afternoon':
+        return Icons.wb_twilight_rounded;
+      case 'evening':
+      case 'night':
+        return Icons.nightlight_round;
+      default:
+        return Icons.schedule_rounded;
+    }
   }
 
   Widget _buildInfoCard(
@@ -258,11 +302,15 @@ class DashboardScreen extends StatelessWidget {
     required String value,
     required String label,
     required Color color,
+    bool isEmpty = false,
+    String? emptyMessage,
   }) {
+    final theme = Theme.of(context);
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -284,18 +332,27 @@ class DashboardScreen extends StatelessWidget {
             child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: 16),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
+          if (isEmpty && emptyMessage != null)
+            Text(
+              emptyMessage,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+            )
+          else
+            Text(
+              value,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
-          ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -304,6 +361,118 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildTimeAllocation(BuildContext context) {
+    return BlocBuilder<DailyUsageSummaryCubit, DailyUsageSummaryState>(
+      builder: (context, state) {
+        if (state.isLoading) {
+          return _buildTimeAllocationLoading(context);
+        }
+
+        final summary = state.summary;
+        if (summary == null || summary.totalCount == 0) {
+          return _buildTimeAllocationEmpty(context);
+        }
+
+        final alignedPct = (summary.alignedCount / summary.totalCount * 100).round();
+        final neutralPct = (summary.neutralCount / summary.totalCount * 100).round();
+        final misalignedPct = 100 - alignedPct - neutralPct;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Time Allocation',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      if (alignedPct > 0)
+                        Expanded(
+                          flex: alignedPct,
+                          child: Container(
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: AppColors.success,
+                              borderRadius: neutralPct == 0 && misalignedPct == 0
+                                  ? BorderRadius.circular(12)
+                                  : const BorderRadius.horizontal(left: Radius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      if (neutralPct > 0)
+                        Expanded(
+                          flex: neutralPct,
+                          child: Container(
+                            height: 24,
+                            color: AppColors.warning,
+                          ),
+                        ),
+                      if (misalignedPct > 0)
+                        Expanded(
+                          flex: misalignedPct,
+                          child: Container(
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: AppColors.error,
+                              borderRadius: alignedPct == 0 && neutralPct == 0
+                                  ? BorderRadius.circular(12)
+                                  : const BorderRadius.horizontal(right: Radius.circular(12)),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildLegendItem(
+                        context,
+                        'Aligned',
+                        '$alignedPct%',
+                        AppColors.success,
+                      ),
+                      _buildLegendItem(
+                        context,
+                        'Neutral',
+                        '$neutralPct%',
+                        AppColors.warning,
+                      ),
+                      _buildLegendItem(
+                        context,
+                        'Misaligned',
+                        '$misalignedPct%',
+                        AppColors.error,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTimeAllocationLoading(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -319,6 +488,31 @@ class DashboardScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimeAllocationEmpty(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Time Allocation',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.05),
@@ -329,45 +523,27 @@ class DashboardScreen extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    flex: 70,
-                    child: Container(
-                      height: 24,
-                      decoration: const BoxDecoration(
-                        color: AppColors.success,
-                        borderRadius: BorderRadius.horizontal(left: Radius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 20,
-                    child: Container(
-                      height: 24,
-                      color: AppColors.warning,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 10,
-                    child: Container(
-                      height: 24,
-                      decoration: const BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.horizontal(right: Radius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ],
+              Icon(
+                Icons.insights_outlined,
+                size: 48,
+                color: theme.colorScheme.outline,
               ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildLegendItem(context, 'Aligned', '70%', AppColors.success),
-                  _buildLegendItem(context, 'Neutral', '20%', AppColors.warning),
-                  _buildLegendItem(context, 'Misaligned', '10%', AppColors.error),
-                ],
+              const SizedBox(height: 12),
+              Text(
+                'No monitoring data yet',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'App monitoring is a work in progress.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -410,56 +586,107 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildRecentActivity(BuildContext context) {
-    return SliverList(
-      delegate: SliverChildListDelegate([
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Recent Activity',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+    return BlocBuilder<UsageHistoryCubit, UsageHistoryState>(
+      builder: (context, state) {
+        return SliverList(
+          delegate: SliverChildListDelegate([
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recent Activity',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pushNamed(AppRoutes.usageHistory),
+                  child: const Text('View All'),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pushNamed(AppRoutes.usageHistory),
-              child: const Text('View All'),
+            const SizedBox(height: 8),
+            if (state.isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (state.items.isEmpty)
+              _buildActivityEmpty(context)
+            else
+              ...state.items.take(3).map((item) {
+                Color alignmentColor;
+                switch (item.alignment) {
+                  case AlignmentStatus.aligned:
+                    alignmentColor = AppColors.success;
+                    break;
+                  case AlignmentStatus.neutral:
+                    alignmentColor = AppColors.warning;
+                    break;
+                  case AlignmentStatus.misaligned:
+                    alignmentColor = AppColors.error;
+                    break;
+                }
+
+                final timeAgo = _formatTimeAgo(item.createdAt);
+                
+                return _buildActivityItem(
+                  context,
+                  appName: item.appName,
+                  message: item.message,
+                  category: item.alignment.displayName,
+                  color: alignmentColor,
+                  time: timeAgo,
+                );
+              }),
+          ]),
+        );
+      },
+    );
+  }
+
+  Widget _buildActivityEmpty(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.apps_rounded,
+            size: 48,
+            color: theme.colorScheme.outline,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No app activity tracked yet',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        _buildActivityItem(
-          context,
-          appName: 'VS Code',
-          duration: '1h 30m',
-          category: 'Productivity',
-          color: AppColors.success,
-          time: '2 mins ago',
-        ),
-        _buildActivityItem(
-          context,
-          appName: 'Slack',
-          duration: '15m',
-          category: 'Communication',
-          color: AppColors.warning,
-          time: '1h ago',
-        ),
-        _buildActivityItem(
-          context,
-          appName: 'Instagram',
-          duration: '45m',
-          category: 'Social Media',
-          color: AppColors.error,
-          time: '3h ago',
-        ),
-      ]),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'App monitoring is currently in development.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildActivityItem(
     BuildContext context, {
     required String appName,
-    required String duration,
+    required String message,
     required String category,
     required Color color,
     required String time,
@@ -496,32 +723,47 @@ class DashboardScreen extends StatelessWidget {
                 Text(
                   category,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                duration,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-              Text(
-                time,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+          Text(
+            time,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
     );
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d';
+    } else {
+      return DateFormat('MMM d').format(dateTime);
+    }
   }
 }

@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/auth_cubit.dart';
 import '../bloc/auth_state.dart';
+import '../bloc/progress_streak_cubit.dart';
+import '../bloc/onboarding_preferences_cubit.dart';
+import '../bloc/daily_usage_summary_cubit.dart';
+import '../bloc/usage_history_cubit.dart';
 import '../core/routes.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
+import 'usage_history_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -18,10 +23,44 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // We define screens here to access context for logout
+    // Provide dashboard-specific cubits at this level
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => ProgressStreakCubit()..loadStreak(),
+        ),
+        BlocProvider(
+          create: (_) => OnboardingPreferencesCubit()..loadPreferences(),
+        ),
+        BlocProvider(
+          create: (_) => DailyUsageSummaryCubit()..loadSummary(),
+        ),
+        BlocProvider(
+          create: (_) => UsageHistoryCubit()..loadHistory(limit: 20),
+        ),
+      ],
+      child: _MainScreenContent(
+        currentIndex: _currentIndex,
+        onIndexChanged: (index) => setState(() => _currentIndex = index),
+      ),
+    );
+  }
+}
+
+class _MainScreenContent extends StatelessWidget {
+  const _MainScreenContent({
+    required this.currentIndex,
+    required this.onIndexChanged,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onIndexChanged;
+
+  @override
+  Widget build(BuildContext context) {
     final List<Widget> screens = [
       const DashboardScreen(),
-      const Scaffold(body: Center(child: Text('Usage History'))), // Placeholder
+      const UsageHistoryScreen(),
       const SettingsScreen(),
     ];
 
@@ -35,7 +74,7 @@ class _MainScreenState extends State<MainScreen> {
         }
       },
       child: Scaffold(
-        body: screens[_currentIndex],
+        body: screens[currentIndex],
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
             boxShadow: [
@@ -47,12 +86,8 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
           child: NavigationBar(
-            selectedIndex: _currentIndex,
-            onDestinationSelected: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
+            selectedIndex: currentIndex,
+            onDestinationSelected: onIndexChanged,
             backgroundColor: Theme.of(context).colorScheme.surface,
             indicatorColor: Theme.of(context).colorScheme.primaryContainer,
             destinations: const [
