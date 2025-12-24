@@ -15,6 +15,13 @@ from .usage import (
     DailySummary,
     AlignmentStatus,
 )
+from .progress_score import (
+    FinalizeTodayProgressRequest,
+    FinalizeTodayProgressResponse,
+    LatestProgressScoreResponse,
+    ProgressScoreItem,
+    ProgressScoreMessage,
+)
 
 __all__ = [
     # User
@@ -37,4 +44,10 @@ __all__ = [
     "UsageFeedbackResponse",
     "DailySummary",
     "AlignmentStatus",
+    # Progress Score
+    "ProgressScoreMessage",
+    "FinalizeTodayProgressRequest",
+    "ProgressScoreItem",
+    "FinalizeTodayProgressResponse",
+    "LatestProgressScoreResponse",
 ]

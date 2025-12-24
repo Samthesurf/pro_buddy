@@ -255,6 +255,76 @@ class CloudflareVectorizeService:
 
         await self._upsert_vectors(self.index_name_users, [vector])
 
+    async def store_onboarding_preferences(
+        self,
+        user_id: str,
+        challenges: List[str],
+        habits: List[str],
+        distraction_hours: float = 0,
+        focus_duration_minutes: float = 0,
+        goal_clarity: int = 5,
+        productive_time: str = "Morning",
+        check_in_frequency: str = "Daily",
+    ) -> None:
+        """Store user's onboarding preferences (habits, challenges, etc.) in the vector database."""
+        # Build a document for semantic search
+        document_parts = []
+        if challenges:
+            document_parts.append(f"Challenges to overcome: {', '.join(challenges)}")
+        if habits:
+            document_parts.append(f"Habits to build: {', '.join(habits)}")
+        document_parts.append(f"Productive time: {productive_time}")
+        document_parts.append(f"Check-in frequency: {check_in_frequency}")
+        document_parts.append(f"Goal clarity: {goal_clarity}/10")
+        document_parts.append(f"Hours lost to distractions: {distraction_hours}")
+        document_parts.append(f"Focus duration: {focus_duration_minutes} minutes")
+        
+        document = "\n".join(document_parts)
+
+        # Generate embedding
+        embedding = await self._generate_embedding(document)
+
+        vector = {
+            "id": f"onboarding_prefs_{user_id}",
+            "values": embedding,
+            "metadata": {
+                "user_id": user_id,
+                "type": "onboarding_preferences",
+                "challenges": challenges,
+                "habits": habits,
+                "distraction_hours": distraction_hours,
+                "focus_duration_minutes": focus_duration_minutes,
+                "goal_clarity": goal_clarity,
+                "productive_time": productive_time,
+                "check_in_frequency": check_in_frequency,
+            },
+        }
+
+        await self._upsert_vectors(self.index_name_users, [vector])
+
+    async def get_onboarding_preferences(
+        self,
+        user_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve user's onboarding preferences from the vector database."""
+        try:
+            result = await self._get_vectors_by_ids(
+                self.index_name_users,
+                [f"onboarding_prefs_{user_id}"],
+            )
+            
+            if result.get("success") and result.get("result", {}).get("vectors"):
+                vectors = result["result"]["vectors"]
+                if vectors:
+                    # Get the first (and only) vector's metadata
+                    vector_data = vectors.get(f"onboarding_prefs_{user_id}")
+                    if vector_data and isinstance(vector_data, dict):
+                        return vector_data.get("metadata")
+            return None
+        except Exception as e:
+            print(f"Warning: Failed to get onboarding preferences: {e}")
+            return None
+
     async def get_user_context(
         self,
         user_id: str,
@@ -440,6 +510,47 @@ class CloudflareVectorizeService:
 
         await self._upsert_vectors(self.index_name_users, [vector])
 
+    async def store_progress_session(
+        self,
+        *,
+        user_id: str,
+        date_utc: str,
+        score_percent: int,
+        reason: str,
+        conversation_text: str,
+    ) -> None:
+        """
+        Store a session-level embedding for today's progress chat.
+
+        This acts as long-term memory for future scoring and reflection.
+        """
+        conversation_text = (conversation_text or "").strip()
+        if len(conversation_text) > 12000:
+            conversation_text = conversation_text[-12000:]
+
+        # Create a rich document for semantic search / recall.
+        document = (
+            f"Progress Session ({date_utc})\n"
+            f"Score: {int(score_percent)}/100\n"
+            f"Reason: {reason}\n"
+            f"Conversation:\n{conversation_text}"
+        )
+
+        embedding = await self._generate_embedding(document)
+        vector = {
+            "id": f"progress_session_{user_id}_{date_utc}",
+            "values": embedding,
+            "metadata": {
+                "user_id": user_id,
+                "type": "progress_session",
+                "date_utc": date_utc,
+                "score_percent": int(score_percent),
+                "reason": reason,
+            },
+        }
+
+        await self._upsert_vectors(self.index_name_users, [vector])
+
     async def get_recent_progress(
         self,
         user_id: str,
@@ -480,6 +591,39 @@ class CloudflareVectorizeService:
                     progress_entries.append(metadata)
 
         return progress_entries
+
+    async def get_recent_progress_sessions(
+        self,
+        user_id: str,
+        n_results: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve recent progress session memories for a user.
+        """
+        query_embedding = await self._generate_embedding(
+            f"user {user_id} recent progress session scores"
+        )
+
+        results = await self._query_vectors(
+            self.index_name_users,
+            query_embedding,
+            top_k=n_results,
+            filter_metadata={
+                "user_id": {"$eq": user_id},
+                "type": {"$eq": "progress_session"},
+            },
+        )
+
+        sessions: List[Dict[str, Any]] = []
+        if results.get("success") and results.get("result", {}).get("matches"):
+            for match in results["result"]["matches"]:
+                metadata = match.get("metadata", {})
+                if metadata.get("type") == "progress_session":
+                    sessions.append(metadata)
+
+        # Best-effort sort by date_utc
+        sessions.sort(key=lambda x: x.get("date_utc", ""), reverse=True)
+        return sessions
 
     async def search_progress_by_topic(
         self,

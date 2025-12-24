@@ -3,7 +3,7 @@ Chat router for progress conversations with Gemini.
 """
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from fastapi import APIRouter, Request, Depends, HTTPException
 
@@ -17,7 +17,14 @@ from ..models.chat import (
     MessageRole,
     ProgressSummary,
 )
+from ..models.progress_score import (
+    FinalizeTodayProgressRequest,
+    FinalizeTodayProgressResponse,
+    LatestProgressScoreResponse,
+    ProgressScoreItem,
+)
 from ..dependencies import get_current_user
+from ..services.usage_store_service import usage_store_service
 
 
 router = APIRouter()
@@ -307,3 +314,152 @@ async def search_progress(
             status_code=500,
             detail="Failed to search progress entries"
         )
+
+
+def _utc_date_key_now() -> str:
+    """Return YYYY-MM-DD in UTC for 'today' score storage."""
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+@router.post("/finalize-today", response_model=FinalizeTodayProgressResponse)
+async def finalize_today(
+    request: Request,
+    body: FinalizeTodayProgressRequest,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Finalize today's progress chat:
+    - Evaluate today's conversation vs primary goal profile
+    - Store score+reason in D1 (via Worker)
+    - Store a session embedding in Vectorize (memory)
+    """
+    user_id = user["uid"]
+
+    gemini = request.app.state.gemini
+    vectorize = request.app.state.vectorize
+
+    # Get primary goal profile from Vectorize
+    profile = await vectorize.get_notification_profile(user_id)
+    primary_goal = (profile or {}).get("primary_goal") if isinstance(profile, dict) else None
+    primary_goal = (primary_goal or "").strip()
+    if not primary_goal:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing primary goal profile. Please complete Goal Discovery first.",
+        )
+
+    # Build conversation text (today only) from request payload
+    lines = []
+    for m in body.messages or []:
+        role = m.role.value if hasattr(m.role, "value") else str(m.role)
+        content = (m.content or "").strip()
+        if not content:
+            continue
+        lines.append(f"{role}: {content}")
+    conversation_text = "\n".join(lines).strip()
+
+    date_utc = _utc_date_key_now()
+
+    prev_score = None
+    prev_reason = None
+    if usage_store_service.configured:
+        try:
+            prev = await usage_store_service.get_latest_progress_score(user_id=user_id)
+            if isinstance(prev, dict):
+                ps = prev.get("score_percent")
+                if isinstance(ps, int):
+                    prev_score = ps
+                elif ps is not None:
+                    try:
+                        prev_score = int(ps)
+                    except Exception:
+                        prev_score = None
+                prev_reason = prev.get("reason") if isinstance(prev.get("reason"), str) else None
+        except Exception as e:
+            print(f"Warning: failed to read previous progress score: {e}")
+
+    # Evaluate via Gemini
+    eval_result = await gemini.evaluate_goal_progress(
+        primary_goal=primary_goal,
+        conversation_text=conversation_text,
+        profile=profile if isinstance(profile, dict) else None,
+        previous_score=prev_score,
+        previous_reason=prev_reason,
+    )
+    score_percent = int(eval_result.get("score_percent", 0) or 0)
+    reason = str(eval_result.get("reason") or "").strip() or "No reason provided."
+    score_percent = max(0, min(100, score_percent))
+
+    # Persist to D1 via Worker (preferred)
+    if usage_store_service.configured:
+        try:
+            await usage_store_service.upsert_progress_score(
+                user_id=user_id,
+                date_utc=date_utc,
+                score_percent=score_percent,
+                reason=reason,
+            )
+        except Exception as e:
+            print(f"Warning: failed to store progress score via worker: {e}")
+
+    # Store session embedding in Vectorize (memory)
+    try:
+        await vectorize.store_progress_session(
+            user_id=user_id,
+            date_utc=date_utc,
+            score_percent=score_percent,
+            reason=reason,
+            conversation_text=conversation_text,
+        )
+    except Exception as e:
+        print(f"Warning: failed to store progress session embedding: {e}")
+
+    return FinalizeTodayProgressResponse(
+        score=ProgressScoreItem(
+            user_id=user_id,
+            date_utc=date_utc,
+            score_percent=score_percent,
+            reason=reason,
+            updated_at=datetime.utcnow(),
+        )
+    )
+
+
+@router.get("/progress-score/latest", response_model=LatestProgressScoreResponse)
+async def get_latest_progress_score(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Get the user's latest conversation-based progress score.
+    """
+    user_id = user["uid"]
+
+    if not usage_store_service.configured:
+        return LatestProgressScoreResponse(score=None)
+
+    try:
+        item = await usage_store_service.get_latest_progress_score(user_id=user_id)
+        if not item:
+            return LatestProgressScoreResponse(score=None)
+
+        updated_at = None
+        raw_updated_at = item.get("updated_at")
+        if isinstance(raw_updated_at, str) and raw_updated_at:
+            try:
+                updated_at = datetime.fromisoformat(raw_updated_at.replace("Z", "+00:00"))
+            except Exception:
+                updated_at = None
+
+        return LatestProgressScoreResponse(
+            score=ProgressScoreItem(
+                user_id=user_id,
+                date_utc=str(item.get("date_utc") or ""),
+                score_percent=int(item.get("score_percent") or 0),
+                reason=str(item.get("reason") or ""),
+                updated_at=updated_at,
+            )
+        )
+    except Exception as e:
+        print(f"Error getting latest progress score: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve progress score")

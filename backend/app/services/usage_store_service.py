@@ -141,6 +141,159 @@ class UsageStoreService:
                 return []
             return items
 
+    async def get_latest_progress_score(
+        self,
+        *,
+        user_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Fetch the latest stored progress score for a user.
+
+        Returns:
+            Dict with keys: user_id, date_utc, score_percent, reason, updated_at
+            or None if no score exists.
+        """
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        params: Dict[str, Any] = {"user_id": user_id}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                self._url("/v1/progress-score/latest"),
+                headers=self._headers(),
+                params=params,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            item = data.get("item")
+            if not item or not isinstance(item, dict):
+                return None
+            return item
+
+    async def upsert_progress_score(
+        self,
+        *,
+        user_id: str,
+        date_utc: str,
+        score_percent: int,
+        reason: str,
+    ) -> None:
+        """
+        Upsert a daily progress score + reason for a user.
+
+        Args:
+            date_utc: ISO day string (YYYY-MM-DD), treated as UTC date.
+        """
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload: Dict[str, Any] = {
+            "user_id": user_id,
+            "date_utc": date_utc,
+            "score_percent": int(score_percent),
+            "reason": reason,
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/progress-score/upsert"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    async def store_onboarding_preferences(
+        self,
+        *,
+        user_id: str,
+        challenges: List[str],
+        habits: List[str],
+        distraction_hours: float = 0,
+        focus_duration_minutes: float = 0,
+        goal_clarity: int = 5,
+        productive_time: str = "Morning",
+        check_in_frequency: str = "Daily",
+    ) -> None:
+        """
+        Store user's onboarding preferences (challenges, habits, etc.) in D1.
+        """
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload: Dict[str, Any] = {
+            "user_id": user_id,
+            "challenges": challenges,
+            "habits": habits,
+            "distraction_hours": distraction_hours,
+            "focus_duration_minutes": focus_duration_minutes,
+            "goal_clarity": goal_clarity,
+            "productive_time": productive_time,
+            "check_in_frequency": check_in_frequency,
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/onboarding-preferences"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    async def get_onboarding_preferences(
+        self,
+        *,
+        user_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Fetch user's onboarding preferences from D1.
+
+        Returns:
+            Dict with challenges, habits, distraction_hours, etc.
+            or None if not found.
+        """
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        params: Dict[str, Any] = {"user_id": user_id}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                self._url("/v1/onboarding-preferences"),
+                headers=self._headers(),
+                params=params,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            item = data.get("item")
+            if not item or not isinstance(item, dict):
+                return None
+            return item
+
+    async def delete_user_data(self, user_id: str) -> None:
+        """
+        Delete all data for a user from the Usage Store Worker (D1).
+        """
+        if not self.configured:
+            # If not configured (e.g. local dev without worker), just log/pass
+            print("UsageStoreService not configured, skipping delete_user_data")
+            return
+
+        payload = {"user_id": user_id}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # We use DELETE method here, but httpx.delete doesn't support json body easily in all versions,
+            # but standard says it's allowed. However, many clients/servers strip it.
+            # The worker implementation checks method === "DELETE" and reads body.
+            # safe to use request(method="DELETE", ...)
+            resp = await client.request(
+                "DELETE",
+                self._url("/v1/user/data"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
 
 usage_store_service = UsageStoreService(
     base_url=settings.usage_store_worker_url,

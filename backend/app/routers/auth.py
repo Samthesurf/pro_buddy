@@ -4,10 +4,11 @@ Handles Firebase token verification and user management.
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel
 
 from ..services.auth_service import auth_service
+from ..services.usage_store_service import usage_store_service
 from ..models.user import UserResponse
 from ..dependencies import get_current_user
 
@@ -89,3 +90,40 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
         onboarding_complete=user_data.get("onboarding_complete", False),
         created_at=user_data["created_at"],
     )
+
+
+@router.delete("/user/reset")
+async def reset_user_account(
+    req: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Reset user account to a fresh state.
+    Deletes all data in D1 and Vectorize, and clears in-memory state.
+    """
+    uid = current_user["uid"]
+
+    # 1. Clear in-memory user state
+    if uid in _users_db:
+        # Reset to initial state instead of deleting, so they stay logged in
+        _users_db[uid]["onboarding_complete"] = False
+        
+    # 2. Clear in-memory onboarding data
+    # Import here to avoid circular dependency
+    from .onboarding import reset_user_onboarding_data
+    reset_user_onboarding_data(uid)
+
+    # 3. Delete from D1 (Usage Store)
+    try:
+        await usage_store_service.delete_user_data(uid)
+    except Exception as e:
+        print(f"Error deleting user data from Usage Store: {e}")
+
+    # 4. Delete from Vectorize
+    if hasattr(req.app.state, "vectorize"):
+        try:
+            await req.app.state.vectorize.delete_user_data(uid)
+        except Exception as e:
+            print(f"Error deleting user data from Vectorize: {e}")
+
+    return {"success": True, "message": "User account reset successfully"}

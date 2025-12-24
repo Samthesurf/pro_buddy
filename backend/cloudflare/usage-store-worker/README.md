@@ -7,6 +7,8 @@ It is designed to be called **server-to-server** from the FastAPI backend (Oracl
 ### What it stores
 - **Usage feedback events** (the records returned by `/api/v1/monitor/app-usage`)
 - **Notification cooldown timestamps** (to decide whether to notify without keeping in-memory state)
+- **Progress scores** (daily goal progress percentages and reasons)
+- **Onboarding preferences** (challenges, habits, productive time, etc.)
 
 ---
 
@@ -92,3 +94,55 @@ Query params:
 - `user_id` (required)
 - `start_ms` / `end_ms` (optional)
 - `limit` (optional, default 50, max 5000)
+
+### `POST /v1/progress-score/upsert`
+Upserts a daily progress score for a user.
+
+Body:
+```json
+{
+  "user_id": "uid",
+  "date_utc": "2025-01-15",
+  "score_percent": 75,
+  "reason": "Made good progress on goals today"
+}
+```
+
+### `GET /v1/progress-score/latest`
+Get the latest progress score for a user.
+
+Query params:
+- `user_id` (required)
+
+### `POST /v1/onboarding-preferences`
+Upserts user's onboarding preferences (challenges, habits, etc.).
+
+Body:
+```json
+{
+  "user_id": "uid",
+  "challenges": ["doom_scrolling", "late_nights"],
+  "habits": ["morning_routine", "exercise"],
+  "distraction_hours": 3.5,
+  "focus_duration_minutes": 25,
+  "goal_clarity": 7,
+  "productive_time": "Morning",
+  "check_in_frequency": "Daily"
+}
+```
+
+### `GET /v1/onboarding-preferences`
+Get user's onboarding preferences.
+
+Query params:
+- `user_id` (required)
+
+### `DELETE /v1/user/data`
+Deletes all data for a user from all tables.
+
+Body:
+```json
+{
+  "user_id": "uid"
+}
+```

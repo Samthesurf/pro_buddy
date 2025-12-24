@@ -7,6 +7,7 @@ import 'firebase_options.dart';
 import 'bloc/auth_cubit.dart';
 import 'bloc/auth_state.dart';
 import 'bloc/chat_cubit.dart';
+import 'bloc/progress_score_cubit.dart';
 import 'core/core.dart';
 // import 'core/routes.dart';
 
@@ -32,6 +33,9 @@ Future<void> main() async {
         ),
         BlocProvider(
           create: (_) => ChatCubit(),
+        ),
+        BlocProvider(
+          create: (_) => ProgressScoreCubit()..loadLatest(),
         ),
       ],
       child: const ProBuddyApp(),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
+import '../bloc/progress_score_cubit.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -121,8 +123,9 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildGoalAlignmentScore(BuildContext context) {
-    // Placeholder data
-    const score = 85;
+    final state = context.watch<ProgressScoreCubit>().state;
+    final score = state.scorePercent ?? 0;
+    final reason = (state.reason ?? '').trim();
     
     return Container(
       padding: const EdgeInsets.all(24),
@@ -146,14 +149,14 @@ class DashboardScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Goal Alignment',
+                    'Goal Progress',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: Colors.white.withValues(alpha: 0.9),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Today',
+                    state.dateUtc == null ? 'Today' : 'Today (UTC)',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Colors.white.withValues(alpha: 0.7),
                     ),
@@ -171,7 +174,7 @@ class DashboardScreen extends StatelessWidget {
                     const Icon(Icons.trending_up, color: Colors.white, size: 16),
                     const SizedBox(width: 4),
                     Text(
-                      '+5%',
+                      state.isLoading ? '...' : 'Updated',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -207,10 +210,16 @@ class DashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Excellent work! You\'re staying focused.',
+            reason.isNotEmpty
+                ? reason
+                : (state.isLoading
+                    ? 'Updating your score...'
+                    : 'Save today’s progress chat to generate a score.'),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Colors.white.withValues(alpha: 0.9),
             ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

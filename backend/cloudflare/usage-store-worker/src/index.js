@@ -46,6 +46,11 @@ function clampInt(n, min, max) {
   return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
+function isValidIsoDateDay(v) {
+  // YYYY-MM-DD
+  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -210,6 +215,198 @@ export default {
       }));
 
       return json({ items, total: items.length });
+    }
+
+    if (path === "/v1/progress-score/latest") {
+      if (request.method !== "GET") return methodNotAllowed();
+
+      const userId = url.searchParams.get("user_id") || "";
+      if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+      const sql =
+        "SELECT user_id, date_utc, score_percent, reason, updated_at_ms " +
+        "FROM progress_scores WHERE user_id = ? " +
+        "ORDER BY date_utc DESC LIMIT 1";
+
+      const res = await env.DB.prepare(sql).bind(userId).first();
+      if (!res) {
+        return json({ item: null });
+      }
+
+      return json({
+        item: {
+          user_id: res.user_id,
+          date_utc: res.date_utc,
+          score_percent: Number(res.score_percent),
+          reason: String(res.reason || ""),
+          updated_at: new Date(Number(res.updated_at_ms)).toISOString(),
+        },
+      });
+    }
+
+    if (path === "/v1/progress-score/upsert") {
+      if (request.method !== "POST") return methodNotAllowed();
+
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+      const userId = String(body.user_id || "");
+      const dateUtc = String(body.date_utc || "");
+      const scorePercent = Number(body.score_percent);
+      const reason = String(body.reason || "");
+
+      if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+      if (!isValidIsoDateDay(dateUtc)) return badRequest("invalid_date_utc");
+      if (!Number.isFinite(scorePercent)) return badRequest("invalid_score_percent");
+      const scoreInt = clampInt(scorePercent, 0, 100);
+      if (!isNonEmptyString(reason)) return badRequest("reason_required");
+
+      const nowMs = Date.now();
+
+      const stmt = env.DB.prepare(`
+        INSERT INTO progress_scores (
+          user_id, date_utc, score_percent, reason, created_at_ms, updated_at_ms
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, date_utc) DO UPDATE SET
+          score_percent = excluded.score_percent,
+          reason = excluded.reason,
+          updated_at_ms = excluded.updated_at_ms
+      `);
+
+      await stmt
+        .bind(userId, dateUtc, scoreInt, reason, nowMs, nowMs)
+        .run();
+
+      return json({ ok: true });
+    }
+
+    // ==================== Onboarding Preferences ====================
+
+    if (path === "/v1/onboarding-preferences") {
+      if (request.method === "POST") {
+        // Upsert onboarding preferences
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+        const userId = String(body.user_id || "");
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        const challenges = JSON.stringify(Array.isArray(body.challenges) ? body.challenges : []);
+        const habits = JSON.stringify(Array.isArray(body.habits) ? body.habits : []);
+        const distractionHours = Number(body.distraction_hours) || 0;
+        const focusDurationMinutes = Number(body.focus_duration_minutes) || 0;
+        const goalClarity = clampInt(Number(body.goal_clarity) || 5, 1, 10);
+        const productiveTime = String(body.productive_time || "Morning");
+        const checkInFrequency = String(body.check_in_frequency || "Daily");
+
+        const nowMs = Date.now();
+
+        const stmt = env.DB.prepare(`
+          INSERT INTO onboarding_preferences (
+            user_id, challenges, habits, distraction_hours, focus_duration_minutes,
+            goal_clarity, productive_time, check_in_frequency, created_at, updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id) DO UPDATE SET
+            challenges = excluded.challenges,
+            habits = excluded.habits,
+            distraction_hours = excluded.distraction_hours,
+            focus_duration_minutes = excluded.focus_duration_minutes,
+            goal_clarity = excluded.goal_clarity,
+            productive_time = excluded.productive_time,
+            check_in_frequency = excluded.check_in_frequency,
+            updated_at = excluded.updated_at
+        `);
+
+        await stmt
+          .bind(
+            userId,
+            challenges,
+            habits,
+            distractionHours,
+            focusDurationMinutes,
+            goalClarity,
+            productiveTime,
+            checkInFrequency,
+            nowMs,
+            nowMs
+          )
+          .run();
+
+        return json({ ok: true });
+      }
+
+      if (request.method === "GET") {
+        // Get onboarding preferences
+        const userId = url.searchParams.get("user_id") || "";
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        const res = await env.DB.prepare(
+          "SELECT * FROM onboarding_preferences WHERE user_id = ?"
+        )
+          .bind(userId)
+          .first();
+
+        if (!res) {
+          return json({ item: null });
+        }
+
+        // Parse JSON arrays
+        let challenges = [];
+        let habits = [];
+        try {
+          challenges = JSON.parse(res.challenges || "[]");
+        } catch (e) {
+          challenges = [];
+        }
+        try {
+          habits = JSON.parse(res.habits || "[]");
+        } catch (e) {
+          habits = [];
+        }
+
+        return json({
+          item: {
+            user_id: res.user_id,
+            challenges,
+            habits,
+            distraction_hours: Number(res.distraction_hours) || 0,
+            focus_duration_minutes: Number(res.focus_duration_minutes) || 0,
+            goal_clarity: Number(res.goal_clarity) || 5,
+            productive_time: res.productive_time || "Morning",
+            check_in_frequency: res.check_in_frequency || "Daily",
+            created_at: new Date(Number(res.created_at)).toISOString(),
+            updated_at: new Date(Number(res.updated_at)).toISOString(),
+          },
+        });
+      }
+
+      return methodNotAllowed();
+    }
+
+    // ==================== User Data Deletion ====================
+
+    if (path === "/v1/user/data") {
+      if (request.method !== "DELETE") return methodNotAllowed();
+
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+      const userId = String(body.user_id || "");
+      if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+      // Delete from all tables (including onboarding_preferences)
+      const batch = [
+        env.DB.prepare("DELETE FROM usage_feedback WHERE user_id = ?").bind(userId),
+        env.DB.prepare("DELETE FROM notification_cooldowns WHERE user_id = ?").bind(userId),
+        env.DB.prepare("DELETE FROM progress_scores WHERE user_id = ?").bind(userId),
+        env.DB.prepare("DELETE FROM onboarding_preferences WHERE user_id = ?").bind(userId)
+      ];
+
+      await env.DB.batch(batch);
+
+      return json({ ok: true });
     }
 
     return notFound();

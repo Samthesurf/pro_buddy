@@ -119,36 +119,30 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } else if (hasNewOnboardingData) {
       // New onboarding flow: data was collected via quiz/challenges/habits screens
-      // We need to save a synthetic goal so the backend's completeOnboarding doesn't fail
+      // Don't save challenges/habits as "goals" - they are routines to achieve goals
+      // The Goal Discovery will ask for the actual primary goal
       setState(() {
         _isSavingData = true;
         _hasSaveError = false;
       });
       
       try {
-        // Create a meaningful goal from the new onboarding data
+        // Save onboarding preferences (challenges, habits) separately from primary goals
         final onboardingData = data['onboarding_data'] as Map<String, dynamic>?;
-        final challenges = (onboardingData?['challenges'] as List<dynamic>?)?.cast<String>() ?? [];
-        final habits = (onboardingData?['habits'] as List<dynamic>?)?.cast<String>() ?? [];
-        
-        // Build a goal content based on selected challenges and habits
-        String goalContent = 'Improve focus and productivity';
-        if (challenges.isNotEmpty) {
-          goalContent = 'Overcome ${challenges.first.replaceAll('_', ' ')} and build better habits';
+        if (onboardingData != null) {
+          await ApiService.instance.saveOnboardingPreferences(
+            challenges: (onboardingData['challenges'] as List<dynamic>?)?.cast<String>() ?? [],
+            habits: (onboardingData['habits'] as List<dynamic>?)?.cast<String>() ?? [],
+            distractionHours: (onboardingData['distraction_hours'] as num?)?.toDouble() ?? 0,
+            focusDurationMinutes: (onboardingData['focus_duration_minutes'] as num?)?.toDouble() ?? 0,
+            goalClarity: (onboardingData['goal_clarity'] as num?)?.toInt() ?? 5,
+            productiveTime: onboardingData['productive_time'] as String? ?? 'Morning',
+            checkInFrequency: onboardingData['check_in_frequency'] as String? ?? 'Daily',
+          );
         }
-        
-        String goalReason = 'To achieve my full potential';
-        if (habits.isNotEmpty) {
-          goalReason = 'By building habits like ${habits.first.replaceAll('_', ' ')}';
-        }
-        
-        await ApiService.instance.saveGoals(
-          content: goalContent,
-          reason: goalReason,
-          timeline: '3 months',
-        );
         
         if (!mounted) return;
+        // Go directly to Goal Discovery to ask for actual primary goals
         Navigator.of(context).pushReplacementNamed(
           AppRoutes.goalDiscovery,
           arguments: {'fromOnboarding': true, 'onboarding_data': data['onboarding_data']},

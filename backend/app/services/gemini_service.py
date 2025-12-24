@@ -608,3 +608,113 @@ Rules:
                 "done": False,
                 "profile": existing_profile,
             }
+
+    async def evaluate_goal_progress(
+        self,
+        *,
+        primary_goal: str,
+        conversation_text: str,
+        profile: Optional[Dict[str, Any]] = None,
+        previous_score: Optional[int] = None,
+        previous_reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Evaluate today's goal progress as a 0-100 percentage with a stored reason.
+
+        This is used when the user exits the daily progress chat (Save & Exit).
+        """
+        profile = profile or {}
+
+        # Keep payload bounded so we don't blow token limits.
+        conversation_text = (conversation_text or "").strip()
+        if len(conversation_text) > 12000:
+            conversation_text = conversation_text[-12000:]
+
+        identity = (profile.get("identity") or "").strip()
+        why = (profile.get("why") or "").strip()
+        stakes = (profile.get("stakes") or "").strip()
+        motivators = profile.get("motivators") or []
+
+        motivators_text = ""
+        if isinstance(motivators, list) and motivators:
+            motivators_text = ", ".join([str(m).strip() for m in motivators if str(m).strip()][:5])
+
+        prev_text = ""
+        if isinstance(previous_score, int) or isinstance(previous_reason, str):
+            prev_text = (
+                "PREVIOUS STORED SCORE (for continuity, optional):\n"
+                f"- score_percent: {previous_score if isinstance(previous_score, int) else 'null'}\n"
+                f"- reason: {previous_reason.strip() if isinstance(previous_reason, str) else ''}\n"
+            )
+
+        prompt = f"""You are a precise progress evaluator for a goal-tracking app.
+
+USER PRIMARY GOAL:
+{primary_goal}
+
+OPTIONAL CONTEXT (do NOT invent anything beyond this):
+- identity: {identity}
+- why: {why}
+- stakes: {stakes}
+- motivators: {motivators_text}
+
+{prev_text}
+TODAY'S CONVERSATION (user + assistant):
+{conversation_text if conversation_text else "(empty)"}
+
+TASK:
+1) Estimate the user's goal progress TODAY as an integer percent 0-100.
+2) Provide a short stored reason explaining the score in 2-5 sentences.
+
+SCORING RULES:
+- Only use evidence from TODAY'S CONVERSATION.
+- If the conversation contains no concrete actions, score should be low-to-mid (0-40).
+- If they completed meaningful goal-aligned work, score can be higher (60-100).
+- If they mostly reported distractions/avoidance, score should be low (0-25).
+- Do not reward "plans" as much as completed actions.
+- Be conservative: prefer under-scoring vs over-scoring.
+
+OUTPUT:
+Return ONLY valid JSON with this schema:
+{{
+  "score_percent": 0-100,
+  "reason": "string"
+}}
+
+Return ONLY the JSON."""
+
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=prompt,
+            )
+
+            response_text = response.text.strip()
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+
+            result = json.loads(response_text)
+            score = result.get("score_percent")
+            reason = str(result.get("reason") or "").strip()
+
+            if not isinstance(score, int):
+                # Gemini may return floats; coerce safely.
+                try:
+                    score = int(round(float(score)))
+                except Exception:
+                    score = 0
+
+            score = max(0, min(100, int(score)))
+            if not reason:
+                reason = "No detailed reason was provided."
+
+            return {"score_percent": score, "reason": reason}
+        except Exception as e:
+            print(f"Error evaluating goal progress: {e}")
+            return {
+                "score_percent": 0,
+                "reason": "Unable to evaluate progress due to an internal error.",
+            }

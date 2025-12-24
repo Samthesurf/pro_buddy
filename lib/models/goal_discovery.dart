@@ -51,6 +51,23 @@ class NotificationProfile {
       appIntentNotes: json['app_intent_notes'],
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'identity': identity,
+      'primary_goal': primaryGoal,
+      'why': why,
+      'motivators': motivators,
+      'stakes': stakes,
+      'importance_1_to_5': importance1To5,
+      'style': style,
+      'preferred_name_for_user': preferredNameForUser,
+      'preferred_name_for_assistant': preferredNameForAssistant,
+      'helpful_apps': helpfulApps,
+      'risky_apps': riskyApps,
+      'app_intent_notes': appIntentNotes,
+    };
+  }
 }
 
 class GoalDiscoveryResponse {

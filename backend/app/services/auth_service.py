@@ -73,6 +73,32 @@ class AuthService:
             print(f"Token verification error: {e}")
             return None
 
+    def delete_user(self, uid: str) -> bool:
+        """
+        Delete a user from Firebase Authentication.
+
+        Args:
+            uid: Firebase user ID
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not AuthService._initialized:
+            if settings.debug:
+                print(f"[DEBUG] Would delete Firebase user {uid}")
+                return True
+            return False
+
+        try:
+            auth.delete_user(uid)
+            return True
+        except auth.UserNotFoundError:
+            print(f"User {uid} not found in Firebase")
+            return False
+        except Exception as e:
+            print(f"Error deleting user from Firebase: {e}")
+            return False
+
     def get_user(self, uid: str) -> Optional[Dict[str, Any]]:
         """
         Get user information from Firebase.

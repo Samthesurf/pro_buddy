@@ -5,6 +5,7 @@ import '../bloc/goal_discovery_cubit.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
 import '../models/chat.dart';
+import '../services/notification_content.dart';
 
 class GoalDiscoveryScreen extends StatefulWidget {
   const GoalDiscoveryScreen({super.key});
@@ -18,12 +19,19 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
   final ScrollController _scrollController = ScrollController();
 
   bool _didAutoNavigate = false;
+  bool _didCacheProfile = false;
+  bool _didCacheCheckIn = false;
+
+  Map<String, dynamic>? get _routeArgs {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic>) return args;
+    if (args is Map) return args.cast<String, dynamic>();
+    return null;
+  }
 
   bool get _fromOnboarding {
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map) {
-      return args['fromOnboarding'] == true;
-    }
+    final args = _routeArgs;
+    if (args != null) return args['fromOnboarding'] == true;
     // If not explicitly passed, assume true if we are in an initial discovery flow?
     // Actually, checking history or just defaulting to false is safer.
     // But since we just finished auth and pushed here, we passed 'fromOnboarding': true in AuthScreen.
@@ -74,6 +82,23 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
             SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
           );
           context.read<GoalDiscoveryCubit>().clearError();
+        }
+
+        // Cache check-in frequency + profile locally so notifications can be generated without API calls.
+        if (!_didCacheCheckIn) {
+          final args = _routeArgs;
+          final onboarding = args?['onboarding_data'];
+          if (onboarding is Map) {
+            final data = onboarding.cast<String, dynamic>();
+            final freq = (data['check_in_frequency'] ?? 'Daily').toString();
+            NotificationCache.saveCheckInFrequency(freq);
+            _didCacheCheckIn = true;
+          }
+        }
+
+        if (state.done && !_didCacheProfile && state.profile != null) {
+          NotificationCache.saveNotificationProfile(state.profile!);
+          _didCacheProfile = true;
         }
 
         if (_fromOnboarding &&

@@ -18,16 +18,18 @@ from ..models.goal_discovery import (
     GoalDiscoveryResponse,
     NotificationProfile,
 )
+from ..services.usage_store_service import usage_store_service
 
 
 router = APIRouter()
 
 
 # Simple in-memory storage (replace with database in production)
-_goals_db: dict = {}
+_goals_db: dict = {}  # user_id -> list of Goal (actual primary goals from Goal Discovery)
 _app_selections_db: dict = {}
 _notification_profile_db: dict = {}  # user_id -> latest profile dict (cache)
 _goal_discovery_sessions: dict = {}  # session_id -> session state (in-memory)
+_onboarding_preferences_db: dict = {}  # user_id -> onboarding preferences (challenges, habits, etc.)
 
 # Goal discovery guardrails (kept intentionally small: this is onboarding UX).
 _GOAL_DISCOVERY_MAX_USER_TURNS = 8
@@ -334,6 +336,38 @@ class OnboardingCompleteResponse(BaseModel):
     goals_summary: str | None = None
 
 
+class OnboardingPreferencesRequest(BaseModel):
+    """Request for saving onboarding preferences (challenges, habits - NOT primary goals)."""
+
+    challenges: List[str] = []
+    habits: List[str] = []
+    distraction_hours: float = 0
+    focus_duration_minutes: float = 0
+    goal_clarity: int = 5
+    productive_time: str = "Morning"
+    check_in_frequency: str = "Daily"
+
+
+class OnboardingPreferencesResponse(BaseModel):
+    """Response for onboarding preferences."""
+
+    challenges: List[str] = []
+    habits: List[str] = []
+    distraction_hours: float = 0
+    focus_duration_minutes: float = 0
+    goal_clarity: int = 5
+    productive_time: str = "Morning"
+    check_in_frequency: str = "Daily"
+
+
+class GoalUpdateRequest(BaseModel):
+    """Request for updating a goal."""
+
+    content: str | None = None
+    reason: str | None = None
+    timeline: str | None = None
+
+
 async def _bg_store_goal(vectorize, user_id: str, goal_id: str, content: str, reason: str | None):
     """Background task to store goal in Vectorize."""
     try:
@@ -345,6 +379,23 @@ async def _bg_store_goal(vectorize, user_id: str, goal_id: str, content: str, re
         )
     except Exception as e:
         print(f"Warning: Failed to store goal in Vectorize (background): {e}")
+
+
+def reset_user_onboarding_data(uid: str):
+    """Clear in-memory onboarding data for a user."""
+    if uid in _goals_db:
+        del _goals_db[uid]
+    if uid in _app_selections_db:
+        del _app_selections_db[uid]
+    if uid in _notification_profile_db:
+        del _notification_profile_db[uid]
+    if uid in _onboarding_preferences_db:
+        del _onboarding_preferences_db[uid]
+    
+    # Clear goal discovery sessions for this user
+    sessions_to_remove = [k for k, v in _goal_discovery_sessions.items() if v.get("user_id") == uid]
+    for k in sessions_to_remove:
+        del _goal_discovery_sessions[k]
 
 
 @router.post("/goals", response_model=GoalsResponse)
@@ -506,6 +557,134 @@ async def get_app_selections(
     )
 
 
+@router.post("/preferences", response_model=OnboardingPreferencesResponse)
+async def save_onboarding_preferences(
+    request: OnboardingPreferencesRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Save user's onboarding preferences (challenges, habits, etc.)
+    
+    These are routines/habits to help achieve goals, NOT the primary goals themselves.
+    Primary goals are collected separately via Goal Discovery.
+    """
+    uid = current_user["uid"]
+    
+    prefs = {
+        "challenges": request.challenges,
+        "habits": request.habits,
+        "distraction_hours": request.distraction_hours,
+        "focus_duration_minutes": request.focus_duration_minutes,
+        "goal_clarity": request.goal_clarity,
+        "productive_time": request.productive_time,
+        "check_in_frequency": request.check_in_frequency,
+    }
+    
+    # Store in memory cache
+    _onboarding_preferences_db[uid] = prefs
+    
+    # Persist to D1 for long-term storage
+    if usage_store_service.configured:
+        try:
+            await usage_store_service.store_onboarding_preferences(
+                user_id=uid,
+                challenges=request.challenges,
+                habits=request.habits,
+                distraction_hours=request.distraction_hours,
+                focus_duration_minutes=request.focus_duration_minutes,
+                goal_clarity=request.goal_clarity,
+                productive_time=request.productive_time,
+                check_in_frequency=request.check_in_frequency,
+            )
+        except Exception as e:
+            print(f"Warning: Failed to store onboarding preferences in D1: {e}")
+    
+    return OnboardingPreferencesResponse(**prefs)
+
+
+@router.get("/preferences", response_model=OnboardingPreferencesResponse)
+async def get_onboarding_preferences(
+    current_user: dict = Depends(get_current_user),
+):
+    """Get user's onboarding preferences."""
+    uid = current_user["uid"]
+    
+    # Try memory cache first
+    prefs = _onboarding_preferences_db.get(uid)
+    
+    # If not in memory, try D1
+    if not prefs and usage_store_service.configured:
+        try:
+            stored_prefs = await usage_store_service.get_onboarding_preferences(user_id=uid)
+            if stored_prefs:
+                prefs = {
+                    "challenges": stored_prefs.get("challenges", []),
+                    "habits": stored_prefs.get("habits", []),
+                    "distraction_hours": stored_prefs.get("distraction_hours", 0),
+                    "focus_duration_minutes": stored_prefs.get("focus_duration_minutes", 0),
+                    "goal_clarity": stored_prefs.get("goal_clarity", 5),
+                    "productive_time": stored_prefs.get("productive_time", "Morning"),
+                    "check_in_frequency": stored_prefs.get("check_in_frequency", "Daily"),
+                }
+                # Cache in memory
+                _onboarding_preferences_db[uid] = prefs
+        except Exception as e:
+            print(f"Warning: Failed to get onboarding preferences from D1: {e}")
+    
+    prefs = prefs or {}
+    
+    return OnboardingPreferencesResponse(
+        challenges=prefs.get("challenges", []),
+        habits=prefs.get("habits", []),
+        distraction_hours=prefs.get("distraction_hours", 0),
+        focus_duration_minutes=prefs.get("focus_duration_minutes", 0),
+        goal_clarity=prefs.get("goal_clarity", 5),
+        productive_time=prefs.get("productive_time", "Morning"),
+        check_in_frequency=prefs.get("check_in_frequency", "Daily"),
+    )
+
+
+@router.put("/goals/{goal_id}", response_model=GoalsResponse)
+async def update_goal(
+    goal_id: str,
+    request: GoalUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update an existing goal."""
+    uid = current_user["uid"]
+    goals = _goals_db.get(uid, [])
+    
+    for goal in goals:
+        if goal.id == goal_id:
+            if request.content is not None:
+                goal.content = request.content
+            if request.reason is not None:
+                goal.reason = request.reason
+            if request.timeline is not None:
+                goal.timeline = request.timeline
+            
+            return GoalsResponse(goals=goals)
+    
+    raise HTTPException(status_code=404, detail="Goal not found")
+
+
+@router.delete("/goals/{goal_id}")
+async def delete_goal(
+    goal_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete a goal."""
+    uid = current_user["uid"]
+    goals = _goals_db.get(uid, [])
+    
+    for i, goal in enumerate(goals):
+        if goal.id == goal_id:
+            goals.pop(i)
+            return {"success": True, "message": "Goal deleted"}
+    
+    raise HTTPException(status_code=404, detail="Goal not found")
+
+
 @router.post("/complete", response_model=OnboardingCompleteResponse)
 async def complete_onboarding(
     current_user: dict = Depends(get_current_user),
@@ -519,19 +698,24 @@ async def complete_onboarding(
     """
     uid = current_user["uid"]
 
-    # Check if user has goals and apps
+    # Get goals, apps, and profile
     goals = _goals_db.get(uid, [])
     apps = _app_selections_db.get(uid, [])
+    profile = _notification_profile_db.get(uid, {})
 
-    if not goals:
+    # Check if we have a primary goal from Goal Discovery (preferred)
+    # or from direct goal input
+    has_primary_goal = _is_nonempty_str(profile.get("primary_goal")) or len(goals) > 0
+
+    if not has_primary_goal:
         raise HTTPException(
             status_code=400,
-            detail="Please set at least one goal before completing onboarding",
+            detail="Please complete Goal Discovery or set at least one goal before completing onboarding",
         )
 
     # Generate final summary
     summary = None
-    if req and hasattr(req.app.state, "gemini"):
+    if req and hasattr(req.app.state, "gemini") and goals:
         gemini = req.app.state.gemini
         goals_data = [{"content": g.content, "reason": g.reason} for g in goals]
         summary = await gemini.generate_goals_summary(goals_data)
@@ -574,29 +758,11 @@ async def start_goal_discovery(
     elif not existing_profile:
         existing_profile = _notification_profile_db.get(uid) or {}
 
-    # Prefill from onboarding goals if available (reduces redundant questions).
-    # This is best-effort: never overwrite existing profile fields.
-    profile_seed = dict(existing_profile or {})
-    try:
-        goals = _goals_db.get(uid) or []
-        latest_goal = goals[-1] if goals else None
-        if latest_goal is not None:
-            seed_update = {}
-            if not _is_nonempty_str(profile_seed.get("primary_goal")) and _is_nonempty_str(
-                getattr(latest_goal, "content", None)
-            ):
-                seed_update["primary_goal"] = getattr(latest_goal, "content")
-            if not _is_nonempty_str(profile_seed.get("why")) and _is_nonempty_str(
-                getattr(latest_goal, "reason", None)
-            ):
-                seed_update["why"] = getattr(latest_goal, "reason")
-            if seed_update:
-                profile_seed = _merge_notification_profile(profile_seed, seed_update)
-    except Exception:
-        # Never fail onboarding if local goal cache isn't available.
-        pass
-
-    profile_dict = dict(profile_seed or {})
+    # NOTE: We intentionally do NOT seed primary_goal from goals_db here.
+    # The goals in goals_db from the new onboarding flow are routines/habits,
+    # NOT the user's actual primary goals. Goal Discovery should ask for
+    # the user's primary goal fresh, without assuming we already know it.
+    profile_dict = dict(existing_profile or {})
     done = _is_profile_min_complete(profile_dict)
 
     asked: dict = {}

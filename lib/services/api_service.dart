@@ -53,6 +53,12 @@ class ApiService {
     return response.data as Map<String, dynamic>;
   }
 
+  /// Reset user account (delete data)
+  Future<Map<String, dynamic>> resetUserAccount() async {
+    final response = await _dio.delete('/auth/user/reset');
+    return response.data as Map<String, dynamic>;
+  }
+
   // ==================== Onboarding Endpoints ====================
 
   /// Save user goals
@@ -83,6 +89,60 @@ class ApiService {
   Future<Map<String, dynamic>> completeOnboarding() async {
     final response = await _dio.post('/onboarding/complete');
     return response.data as Map<String, dynamic>;
+  }
+
+  /// Save onboarding preferences (challenges, habits, etc.) - NOT primary goals
+  Future<Map<String, dynamic>> saveOnboardingPreferences({
+    required List<String> challenges,
+    required List<String> habits,
+    double distractionHours = 0,
+    double focusDurationMinutes = 0,
+    int goalClarity = 5,
+    String productiveTime = 'Morning',
+    String checkInFrequency = 'Daily',
+  }) async {
+    final response = await _dio.post('/onboarding/preferences', data: {
+      'challenges': challenges,
+      'habits': habits,
+      'distraction_hours': distractionHours,
+      'focus_duration_minutes': focusDurationMinutes,
+      'goal_clarity': goalClarity,
+      'productive_time': productiveTime,
+      'check_in_frequency': checkInFrequency,
+    });
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Get onboarding preferences
+  Future<Map<String, dynamic>> getOnboardingPreferences() async {
+    final response = await _dio.get('/onboarding/preferences');
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Get all user goals
+  Future<Map<String, dynamic>> getGoals() async {
+    final response = await _dio.get('/onboarding/goals');
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Update a goal
+  Future<Map<String, dynamic>> updateGoal({
+    required String goalId,
+    String? content,
+    String? reason,
+    String? timeline,
+  }) async {
+    final response = await _dio.put('/onboarding/goals/$goalId', data: {
+      if (content != null) 'content': content,
+      if (reason != null) 'reason': reason,
+      if (timeline != null) 'timeline': timeline,
+    });
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Delete a goal
+  Future<void> deleteGoal(String goalId) async {
+    await _dio.delete('/onboarding/goals/$goalId');
   }
 
   /// Start the goal discovery / notification profile conversation
@@ -202,6 +262,22 @@ class ApiService {
       'query': query,
       'limit': limit,
     });
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Finalize today's progress chat (compute % score + store memory)
+  Future<Map<String, dynamic>> finalizeTodayProgress({
+    required List<Map<String, dynamic>> messages,
+  }) async {
+    final response = await _dio.post('/chat/finalize-today', data: {
+      'messages': messages,
+    });
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Get latest conversation-based progress score (for dashboard)
+  Future<Map<String, dynamic>> getLatestProgressScore() async {
+    final response = await _dio.get('/chat/progress-score/latest');
     return response.data as Map<String, dynamic>;
   }
 }

@@ -101,6 +101,26 @@ class AuthCubit extends Cubit<AuthState> {
     // State updated via stream listener
   }
 
+  Future<void> resetAccount() async {
+    emit(state.copyWith(isLoading: true));
+    try {
+      await _authService.resetAccount();
+      // After reset, we need to update state to trigger onboarding again.
+      // Since we don't sign out, the stream listener won't fire a "new user" event necessarily,
+      // but we updated the backend state to onboarding_complete=false.
+      // We should manually emit the state change or re-fetch profile.
+      
+      if (state.user != null) {
+        emit(AuthState.authenticated(state.user!, isOnboardingComplete: false));
+      }
+    } catch (e) {
+       emit(state.copyWith(
+        isLoading: false,
+        errorMessage: 'Failed to reset account: $e',
+      ));
+    }
+  }
+
   String _mapErrorToMessage(dynamic error) {
     if (error is FirebaseAuthException) {
       switch (error.code) {

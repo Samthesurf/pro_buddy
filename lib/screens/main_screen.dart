@@ -4,6 +4,7 @@ import '../bloc/auth_cubit.dart';
 import '../bloc/auth_state.dart';
 import '../core/routes.dart';
 import 'dashboard_screen.dart';
+import 'settings_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -21,23 +22,7 @@ class _MainScreenState extends State<MainScreen> {
     final List<Widget> screens = [
       const DashboardScreen(),
       const Scaffold(body: Center(child: Text('Usage History'))), // Placeholder
-      Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Settings'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  context.read<AuthCubit>().signOut();
-                },
-                child: const Text('Sign Out'),
-              ),
-            ],
-          ),
-        ),
-      ),
+      const SettingsScreen(),
     ];
 
     return BlocListener<AuthCubit, AuthState>(
@@ -45,6 +30,11 @@ class _MainScreenState extends State<MainScreen> {
         if (state.status == AuthStatus.unauthenticated) {
           Navigator.of(context).pushNamedAndRemoveUntil(
             AppRoutes.signIn,
+            (route) => false,
+          );
+        } else if (state.status == AuthStatus.authenticated && !state.isOnboardingComplete) {
+           Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.welcome,
             (route) => false,
           );
         }

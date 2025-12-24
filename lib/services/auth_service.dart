@@ -102,6 +102,18 @@ class AuthService {
       rethrow;
     }
   }
+
+  /// Reset account (delete data)
+  Future<void> resetAccount() async {
+    try {
+      await ApiService.instance.resetUserAccount();
+      // Optional: Sign out after reset if desired, or let them continue as fresh user
+      // User requested "keep using an account as a fresh account", so we don't sign out.
+    } catch (e) {
+      debugPrint('Error resetting account: $e');
+      rethrow;
+    }
+  }
   
   /// Sync user with backend
   Future<void> _syncWithBackend() async {

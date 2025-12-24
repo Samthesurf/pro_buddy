@@ -3,10 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/chat_cubit.dart';
+import '../bloc/progress_score_cubit.dart';
 import '../bloc/progress_summary_cubit.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
 import '../models/chat.dart';
+import '../services/api_service.dart';
+import '../services/notification_content.dart';
+
+enum _ExitAction { saveAndExit, exit, cancel }
 
 /// A beautiful chat screen for daily progress tracking.
 /// Features a prominent question prompt and conversational interface.
@@ -97,9 +102,113 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
     _scrollToBottom();
   }
 
+  bool _isSameLocalDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  Future<void> _handleBackPressed(BuildContext context) async {
+    final theme = Theme.of(context);
+
+    final action = await showDialog<_ExitAction>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Text('Save today’s log?'),
+        content: const Text(
+          'Saving will update your Goal Progress % and store today’s conversation as memory.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_ExitAction.cancel),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_ExitAction.exit),
+            child: Text(
+              'Exit',
+              style: TextStyle(color: theme.colorScheme.error),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(_ExitAction.saveAndExit),
+            child: const Text('Save & Exit'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    if (action == null || action == _ExitAction.cancel) return;
+    if (action == _ExitAction.exit) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    // Save & Exit: send today's messages only.
+    final chatState = context.read<ChatCubit>().state;
+    final now = DateTime.now();
+    final todays = chatState.messages.where((m) => _isSameLocalDay(m.timestamp, now));
+
+    final payload = todays
+        .map(
+          (m) => {
+            'role': m.role == MessageRole.user ? 'user' : 'assistant',
+            'content': m.content,
+            'timestamp': m.timestamp.toIso8601String(),
+          },
+        )
+        .toList();
+
+    // If there's nothing today, just exit.
+    if (payload.isEmpty) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    try {
+      final raw = await ApiService.instance.finalizeTodayProgress(messages: payload);
+      final score = raw['score'] as Map<String, dynamic>?;
+      if (score != null) {
+        final scorePercent = (score['score_percent'] as num?)?.round() ?? 0;
+        final reason = score['reason'] as String? ?? '';
+        final dateUtc = score['date_utc'] as String? ?? '';
+        context.read<ProgressScoreCubit>().setLatest(
+              scorePercent: scorePercent,
+              reason: reason,
+              dateUtc: dateUtc,
+            );
+        NotificationCache.saveLastProgressScore(
+          LastProgressScore(
+            scorePercent: scorePercent,
+            reason: reason,
+            dateUtc: dateUtc,
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to save today’s log.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<ChatCubit, ChatState>(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _handleBackPressed(context);
+      },
+      child: BlocConsumer<ChatCubit, ChatState>(
       listenWhen: (previous, current) =>
           previous.messages.length != current.messages.length ||
           previous.isLoading != current.isLoading ||
@@ -162,6 +271,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
           ),
         );
       },
+    ),
     );
   }
 
@@ -173,7 +283,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => _handleBackPressed(context),
             icon: const Icon(Icons.arrow_back_rounded),
             style: IconButton.styleFrom(
               backgroundColor: theme.colorScheme.surface,
