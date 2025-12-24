@@ -82,18 +82,25 @@ class _AuthScreenState extends State<AuthScreen> {
 
     // Check for deferred onboarding data
     final data = _onboardingData;
-    if (data != null) {
+    
+    // Check if this is legacy goal data (has 'content' key with a non-null String value)
+    final hasLegacyGoalData = data != null && data['content'] is String;
+    
+    // Check if this is new onboarding data (has 'onboarding_data' key)
+    final hasNewOnboardingData = data != null && data['onboarding_data'] != null;
+    
+    if (hasLegacyGoalData) {
+      // Legacy flow: save goals from GoalsInputScreen
       setState(() {
         _isSavingData = true;
         _hasSaveError = false;
       });
 
       try {
-        // Save the deferred goals
         await ApiService.instance.saveGoals(
-          content: data['content'],
-          reason: data['reason'],
-          timeline: data['timeline'],
+          content: data['content'] as String,
+          reason: data['reason'] as String?,
+          timeline: data['timeline'] as String?,
         );
 
         if (!mounted) return;
@@ -110,8 +117,51 @@ class _AuthScreenState extends State<AuthScreen> {
           _hasSaveError = true;
         });
       }
+    } else if (hasNewOnboardingData) {
+      // New onboarding flow: data was collected via quiz/challenges/habits screens
+      // We need to save a synthetic goal so the backend's completeOnboarding doesn't fail
+      setState(() {
+        _isSavingData = true;
+        _hasSaveError = false;
+      });
+      
+      try {
+        // Create a meaningful goal from the new onboarding data
+        final onboardingData = data['onboarding_data'] as Map<String, dynamic>?;
+        final challenges = (onboardingData?['challenges'] as List<dynamic>?)?.cast<String>() ?? [];
+        final habits = (onboardingData?['habits'] as List<dynamic>?)?.cast<String>() ?? [];
+        
+        // Build a goal content based on selected challenges and habits
+        String goalContent = 'Improve focus and productivity';
+        if (challenges.isNotEmpty) {
+          goalContent = 'Overcome ${challenges.first.replaceAll('_', ' ')} and build better habits';
+        }
+        
+        String goalReason = 'To achieve my full potential';
+        if (habits.isNotEmpty) {
+          goalReason = 'By building habits like ${habits.first.replaceAll('_', ' ')}';
+        }
+        
+        await ApiService.instance.saveGoals(
+          content: goalContent,
+          reason: goalReason,
+          timeline: '3 months',
+        );
+        
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed(
+          AppRoutes.goalDiscovery,
+          arguments: {'fromOnboarding': true, 'onboarding_data': data['onboarding_data']},
+        );
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isSavingData = false;
+          _hasSaveError = true;
+        });
+      }
     } else {
-      // Standard flow
+      // Standard flow - no onboarding data passed
       if (state.isOnboardingComplete) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
       } else {

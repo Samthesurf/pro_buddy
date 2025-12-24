@@ -27,8 +27,8 @@ class OnboardingProgressBar extends StatelessWidget {
     final bg = backgroundColor ?? Colors.white.withValues(alpha: 0.2);
     final colors = gradientColors ??
         const [
-          Color(0xFF00D4FF), // Cyan
-          Color(0xFF1A4CFF), // Blue
+          Color(0xFF00E676), // Bright mint/lime green
+          Color(0xFF1B5E20), // Deep forest green
         ];
 
     return Container(

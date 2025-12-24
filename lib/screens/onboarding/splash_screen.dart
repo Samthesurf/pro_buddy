@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/routes.dart';
 import '../../widgets/onboarding_button.dart';
@@ -48,18 +47,6 @@ class _OnboardingSplashScreenState extends State<OnboardingSplashScreen>
   void dispose() {
     _controller.dispose();
     super.dispose();
-  }
-
-  Future<void> _resetOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('onboarding_complete');
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Onboarding reset'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   void _beginOnboarding() {
@@ -113,16 +100,14 @@ class _OnboardingSplashScreenState extends State<OnboardingSplashScreen>
                 children: [
                   const SizedBox(height: 8),
 
-                  // Reset button (for development/testing)
-                  GestureDetector(
-                    onTap: _resetOnboarding,
-                    child: Text(
-                      'Reset',
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 18,
-                        color: Colors.white.withValues(alpha: 0.6),
-                        fontStyle: FontStyle.italic,
-                      ),
+                  // App name
+                  Text(
+                    'Hawk Buddy',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
 
@@ -134,19 +119,20 @@ class _OnboardingSplashScreenState extends State<OnboardingSplashScreen>
                     child: SlideTransition(
                       position: _slideUp,
                       child: Text(
-                        'For the focused',
+                        'For those who want to achieve their goals!',
                         style: GoogleFonts.playfairDisplay(
-                          fontSize: 36,
+                          fontSize: 28,
                           fontWeight: FontWeight.w500,
-                          color: Colors.white,
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontStyle: FontStyle.italic,
                           letterSpacing: 0.5,
+                          height: 1.3,
                         ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 80),
+                  const SizedBox(height: 40),
 
                   // Begin button
                   FadeTransition(

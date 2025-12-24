@@ -82,10 +82,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (state.isOnboardingComplete) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
       } else {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.welcome);
+        // User is authenticated but hasn't completed onboarding
+        Navigator.of(context).pushReplacementNamed(AppRoutes.onboardingSplash);
       }
     } else if (state.status == AuthStatus.unauthenticated) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.welcome);
+      // New user - start with new onboarding flow
+      Navigator.of(context).pushReplacementNamed(AppRoutes.onboardingSplash);
     }
   }
 
