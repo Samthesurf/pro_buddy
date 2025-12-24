@@ -223,18 +223,66 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
         ],
       ),
       floatingActionButton: _selectedPackageNames.isNotEmpty
-          ? FloatingActionButton.extended(
-              onPressed: _completeOnboarding,
-              label: _isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Text('Complete Setup'),
-              icon: _isSaving ? null : const Icon(Icons.check),
+          ? Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _isSaving ? null : _completeOnboarding,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: _isSaving 
+                            ? [AppColors.primary.withValues(alpha: 0.6), AppColors.primaryLight.withValues(alpha: 0.6)]
+                            : [AppColors.primary, AppColors.primaryLight],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isSaving)
+                            const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          else
+                            const Icon(Icons.check_rounded, color: Colors.white, size: 22),
+                          const SizedBox(width: 12),
+                          Text(
+                            _isSaving ? 'Setting up...' : 'Complete Setup',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             )
           : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }

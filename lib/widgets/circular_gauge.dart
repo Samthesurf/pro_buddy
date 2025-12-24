@@ -145,3 +145,4 @@ class _GaugeTickPainter extends CustomPainter {
         oldDelegate.inactiveColor != inactiveColor;
   }
 }
+
