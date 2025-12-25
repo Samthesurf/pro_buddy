@@ -3,10 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:ui'; // For BackdropFilter
 
 import '../core/routes.dart';
-import '../core/theme.dart';
+import '../core/cozy_theme.dart';
 import '../bloc/progress_score_cubit.dart';
 import '../bloc/progress_streak_cubit.dart';
 import '../bloc/onboarding_preferences_cubit.dart';
@@ -14,8 +13,8 @@ import '../bloc/daily_usage_summary_cubit.dart';
 import '../bloc/usage_history_cubit.dart';
 import '../models/usage_feedback.dart';
 
-class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+class CozyDashboardScreen extends StatelessWidget {
+  const CozyDashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +138,7 @@ class DashboardScreen extends StatelessWidget {
         titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
         expandedTitleScale: 1.3,
         title: Text(
-          'Dashboard',
+          'Cozy Dashboard',
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.bold,
             color: Theme.of(context).colorScheme.onSurface,
@@ -175,11 +174,11 @@ class DashboardScreen extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryDark],
+          colors: [CozyColors.primary, CozyColors.primaryDark],
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
+            color: CozyColors.primary.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -261,7 +260,7 @@ class DashboardScreen extends StatelessWidget {
                   children: [
                     Text(
                       '$score',
-                      style: GoogleFonts.poppins(
+                      style: GoogleFonts.nunito(
                         fontSize: 64,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -310,7 +309,7 @@ class DashboardScreen extends StatelessWidget {
                 icon: Icons.local_fire_department_rounded,
                 value: state.isLoading ? '...' : '${state.streak}',
                 label: 'Streak',
-                iconColor: const Color(0xFFFF9500), // Orange
+                iconColor: CozyColors.primary, // Warm amber for fire
                 valueColor: Theme.of(context).colorScheme.onSurface,
               );
             },
@@ -331,20 +330,20 @@ class DashboardScreen extends StatelessWidget {
                   switch (time.toLowerCase()) {
                     case 'morning':
                       icon = Icons.wb_sunny_rounded;
-                      color = const Color(0xFFFFCC00); // Yellow
+                      color = CozyColors.warning; // Soft gold for sun
                       break;
                     case 'afternoon':
                       icon = Icons.wb_twilight_rounded;
-                      color = const Color(0xFFFF9500); // Orange
+                      color = CozyColors.primary; // Warm amber
                       break;
                     case 'evening':
                     case 'night':
                       icon = Icons.nightlight_round;
-                      color = const Color(0xFF5856D6); // Indigo/Purple
+                      color = CozyColors.accent; // Deep navy for night
                       break;
                     default:
                       icon = Icons.schedule_rounded;
-                      color = AppColors.success;
+                      color = CozyColors.success;
                   }
 
                   return _buildModernCard(
@@ -480,17 +479,17 @@ class DashboardScreen extends StatelessWidget {
                       if (alignedPct > 0)
                         Expanded(
                           flex: alignedPct,
-                          child: Container(color: AppColors.success),
+                          child: Container(color: CozyColors.success),
                         ),
                       if (neutralPct > 0)
                         Expanded(
                           flex: neutralPct,
-                          child: Container(color: AppColors.warning),
+                          child: Container(color: CozyColors.warning),
                         ),
                       if (misalignedPct > 0)
                         Expanded(
                           flex: misalignedPct,
-                          child: Container(color: AppColors.error),
+                          child: Container(color: CozyColors.error),
                         ),
                     ],
                   ),
@@ -504,19 +503,19 @@ class DashboardScreen extends StatelessWidget {
                     context,
                     'Aligned',
                     '$alignedPct%',
-                    AppColors.success,
+                    CozyColors.success,
                   ),
                   _buildLegendItem(
                     context,
                     'Neutral',
                     '$neutralPct%',
-                    AppColors.warning,
+                    CozyColors.warning,
                   ),
                   _buildLegendItem(
                     context,
                     'Misaligned',
                     '$misalignedPct%',
-                    AppColors.error,
+                    CozyColors.error,
                   ),
                 ],
               ),
@@ -605,15 +604,15 @@ class DashboardScreen extends StatelessWidget {
 
             switch (item.alignment) {
               case AlignmentStatus.aligned:
-                alignmentColor = AppColors.success;
+                alignmentColor = CozyColors.success;
                 icon = Icons.check_circle_outline_rounded;
                 break;
               case AlignmentStatus.neutral:
-                alignmentColor = AppColors.warning;
+                alignmentColor = CozyColors.warning;
                 icon = Icons.remove_circle_outline_rounded;
                 break;
               case AlignmentStatus.misaligned:
-                alignmentColor = AppColors.error;
+                alignmentColor = CozyColors.error;
                 icon = Icons.warning_amber_rounded;
                 break;
             }
@@ -710,14 +709,14 @@ class DashboardScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [AppColors.primary, AppColors.primaryLight],
+              colors: [CozyColors.primary, CozyColors.primaryLight],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.4),
+                color: CozyColors.primary.withValues(alpha: 0.4),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -734,7 +733,7 @@ class DashboardScreen extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 'Log Activity',
-                style: GoogleFonts.poppins(
+                style: GoogleFonts.nunito(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,

@@ -2,7 +2,7 @@
 Chat router for progress conversations with Gemini.
 """
 
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone
 import uuid
 from fastapi import APIRouter, Request, Depends, HTTPException

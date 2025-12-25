@@ -42,14 +42,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       setState(() {
         _goals = futures[0];
-        
+
         // Handle potential nesting of profile data
         var profileData = futures[1];
         print('Profile data raw: $profileData'); // Debug log
 
-        if (profileData.containsKey('profile') && profileData['profile'] is Map) {
+        if (profileData.containsKey('profile') &&
+            profileData['profile'] is Map) {
           try {
-            profileData = Map<String, dynamic>.from(profileData['profile'] as Map);
+            profileData = Map<String, dynamic>.from(
+              profileData['profile'] as Map,
+            );
             print('Unwrapped profile data: $profileData');
           } catch (e) {
             print('Error unwrapping profile data: $e');
@@ -57,7 +60,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         }
         _profile = profileData;
-
 
         _preferences = futures[2];
         _isLoading = false;
@@ -77,69 +79,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? _buildErrorState()
-              : RefreshIndicator(
-                  onRefresh: _loadData,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      // Primary Goals Section
-                      _buildSectionHeader(
-                        icon: Icons.flag_rounded,
-                        title: 'Primary Goals',
-                        subtitle: 'Your main objectives',
-                        color: colorScheme.primary,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildGoalsCard(),
-
-                      const SizedBox(height: 24),
-
-                      // Notification Profile Section
-                      _buildSectionHeader(
-                        icon: Icons.notifications_rounded,
-                        title: 'Notification Profile',
-                        subtitle: 'How we personalize your nudges',
-                        color: colorScheme.secondary,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildProfileCard(),
-
-                      const SizedBox(height: 24),
-
-                      // Onboarding Preferences Section
-                      _buildSectionHeader(
-                        icon: Icons.psychology_rounded,
-                        title: 'Habits & Challenges',
-                        subtitle: 'Your routines and focus areas',
-                        color: colorScheme.tertiary,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildPreferencesCard(),
-
-                      const SizedBox(height: 24),
-
-                      // Actions Section
-                      _buildSectionHeader(
-                        icon: Icons.tune_rounded,
-                        title: 'Actions',
-                        subtitle: 'Manage your account',
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildActionsCard(),
-
-                      const SizedBox(height: 32),
-                    ],
+          ? _buildErrorState()
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // Primary Goals Section
+                  _buildSectionHeader(
+                    icon: Icons.flag_rounded,
+                    title: 'Primary Goals',
+                    subtitle: 'Your main objectives',
+                    color: colorScheme.primary,
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  _buildGoalsCard(),
+
+                  const SizedBox(height: 24),
+
+                  // Notification Profile Section
+                  _buildSectionHeader(
+                    icon: Icons.notifications_rounded,
+                    title: 'Notification Profile',
+                    subtitle: 'How we personalize your nudges',
+                    color: colorScheme.secondary,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildProfileCard(),
+
+                  const SizedBox(height: 24),
+
+                  // Onboarding Preferences Section
+                  _buildSectionHeader(
+                    icon: Icons.psychology_rounded,
+                    title: 'Habits & Challenges',
+                    subtitle: 'Your routines and focus areas',
+                    color: colorScheme.tertiary,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildPreferencesCard(),
+
+                  const SizedBox(height: 24),
+
+                  // Actions Section
+                  _buildSectionHeader(
+                    icon: Icons.tune_rounded,
+                    title: 'Actions',
+                    subtitle: 'Manage your account',
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionsCard(),
+
+                  const SizedBox(height: 32),
+                ],
+              ),
+            ),
     );
   }
 
@@ -196,15 +195,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -216,16 +215,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildGoalsCard() {
     final goalsList = (_goals?['goals'] as List<dynamic>?) ?? [];
     final profile = _profile;
-    
-    // Try both snake_case (standard) and camelCase (potential mismatch)
-    final primaryGoal = (profile?['primary_goal'] as String?) ?? 
-                       (profile?['primaryGoal'] as String?);
-    
-    // Check for 'why' or 'reason'
-    final why = (profile?['why'] as String?) ?? 
-                (profile?['reason'] as String?);
 
-    print('Building Goals Card. Primary: "$primaryGoal", Why: "$why"'); // Debug log
+    // Try both snake_case (standard) and camelCase (potential mismatch)
+    final primaryGoal =
+        (profile?['primary_goal'] as String?) ??
+        (profile?['primaryGoal'] as String?);
+
+    // Check for 'why' or 'reason'
+    final why = (profile?['why'] as String?) ?? (profile?['reason'] as String?);
+
+    print(
+      'Building Goals Card. Primary: "$primaryGoal", Why: "$why"',
+    ); // Debug log
 
     return Card(
       child: Padding(
@@ -278,21 +279,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }),
 
             // Empty state
-            if ((primaryGoal == null || primaryGoal.isEmpty) && goalsList.isEmpty)
+            if ((primaryGoal == null || primaryGoal.isEmpty) &&
+                goalsList.isEmpty)
               Center(
                 child: Column(
                   children: [
                     Icon(
                       Icons.flag_outlined,
                       size: 48,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                     ),
                     const SizedBox(height: 12),
                     Text(
                       'No goals set yet',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
@@ -310,7 +314,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
 
             // Add Goal Button
-            if ((primaryGoal != null && primaryGoal.isNotEmpty) || goalsList.isNotEmpty) ...[
+            if ((primaryGoal != null && primaryGoal.isNotEmpty) ||
+                goalsList.isNotEmpty) ...[
               const SizedBox(height: 16),
               Center(
                 child: TextButton.icon(
@@ -358,9 +363,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(
                 title,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: isPrimary ? colorScheme.primary : colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  color: isPrimary
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const Spacer(),
@@ -373,7 +380,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (onDelete != null)
               IconButton(
                 onPressed: onDelete,
-                icon: Icon(Icons.delete_outline_rounded, size: 18, color: colorScheme.error),
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  size: 18,
+                  color: colorScheme.error,
+                ),
                 visualDensity: VisualDensity.compact,
                 tooltip: 'Delete',
               ),
@@ -382,9 +393,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 8),
         Text(
           content,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
         ),
         if (reason != null && reason.isNotEmpty) ...[
           const SizedBox(height: 8),
@@ -401,9 +412,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Text(
                   reason,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontStyle: FontStyle.italic,
-                      ),
+                    color: colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             ],
@@ -422,8 +433,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text(
                 timeline,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -501,15 +512,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icon(
                       Icons.psychology_outlined,
                       size: 48,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                     ),
                     const SizedBox(height: 12),
                     Text(
                       'Complete Goal Discovery to personalize your experience',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -539,14 +552,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   label,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                Text(value, style: Theme.of(context).textTheme.bodyMedium),
               ],
             ),
           ),
@@ -581,8 +591,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text(
                 'Challenges to Overcome',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+                  color: Theme.of(context).colorScheme.error,
+                ),
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -591,7 +601,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: challenges.map((c) {
                   return Chip(
                     label: Text(_formatChallenge(c.toString())),
-                    backgroundColor: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.errorContainer.withValues(alpha: 0.3),
                     side: BorderSide.none,
                   );
                 }).toList(),
@@ -603,8 +615,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text(
                 'Habits to Build',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.success,
-                    ),
+                  color: Theme.of(context).colorScheme.success,
+                ),
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -643,14 +655,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icon(
                       Icons.checklist_rounded,
                       size: 48,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                     ),
                     const SizedBox(height: 12),
                     Text(
                       'No habits or challenges recorded',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -665,7 +679,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return challenge
         .replaceAll('_', ' ')
         .split(' ')
-        .map((word) => word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '')
+        .map(
+          (word) =>
+              word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '',
+        )
         .join(' ');
   }
 
@@ -673,7 +690,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return habit
         .replaceAll('_', ' ')
         .split(' ')
-        .map((word) => word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '')
+        .map(
+          (word) =>
+              word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '',
+        )
         .join(' ');
   }
 
@@ -693,6 +713,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   AppRoutes.goalDiscovery,
                   arguments: {'fromOnboarding': false},
                 );
+              },
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(
+                Icons.palette_rounded,
+                color: const Color(0xFFD4915C), // Cozy amber color
+              ),
+              title: const Text('Preview Cozy Theme'),
+              subtitle: const Text('Compare the warm, cozy color scheme'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.of(context).pushNamed(AppRoutes.cozyDashboard);
               },
             ),
             const Divider(height: 1),
@@ -761,7 +794,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await context.read<AuthCubit>().resetAccount();
       } catch (e) {
         if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to reset account: $e'),
               behavior: SnackBarBehavior.floating,
@@ -783,7 +816,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) async {
     final contentController = TextEditingController(text: currentContent ?? '');
     final reasonController = TextEditingController(text: currentReason ?? '');
-    final timelineController = TextEditingController(text: currentTimeline ?? '');
+    final timelineController = TextEditingController(
+      text: currentTimeline ?? '',
+    );
 
     final result = await showDialog<bool>(
       context: context,
@@ -846,7 +881,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // TODO: Add API to update primary goal in notification profile
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('To update your primary goal, please use Goal Discovery'),
+            content: Text(
+              'To update your primary goal, please use Goal Discovery',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -854,9 +891,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         try {
           await ApiService.instance.updateGoal(
             goalId: goalId,
-            content: contentController.text.trim().isNotEmpty ? contentController.text.trim() : null,
-            reason: reasonController.text.trim().isNotEmpty ? reasonController.text.trim() : null,
-            timeline: timelineController.text.trim().isNotEmpty ? timelineController.text.trim() : null,
+            content: contentController.text.trim().isNotEmpty
+                ? contentController.text.trim()
+                : null,
+            reason: reasonController.text.trim().isNotEmpty
+                ? reasonController.text.trim()
+                : null,
+            timeline: timelineController.text.trim().isNotEmpty
+                ? timelineController.text.trim()
+                : null,
           );
           await _loadData();
           if (mounted) {

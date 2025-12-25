@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/auth_screen.dart';
 import '../screens/main_screen.dart';
+import '../screens/cozy_main_screen.dart';
 import '../screens/progress_chat_screen.dart';
 import '../screens/app_selection_screen.dart';
 import '../screens/goal_discovery_screen.dart';
@@ -37,6 +38,7 @@ class AppRoutes {
 
   // Main app routes
   static const String dashboard = '/dashboard';
+  static const String cozyDashboard = '/cozy-dashboard';
   static const String progressChat = '/progress';
   static const String goalDiscovery = '/goals/discovery';
   static const String usageHistory = '/history';
@@ -56,65 +58,35 @@ class AppRouter {
     switch (settings.name) {
       // New onboarding flow - make splash the entry point
       case AppRoutes.splash:
-        return _buildRoute(
-          const OnboardingSplashScreen(),
-          settings,
-        );
+        return _buildRoute(const OnboardingSplashScreen(), settings);
 
       case AppRoutes.onboardingSplash:
-        return _buildRoute(
-          const OnboardingSplashScreen(),
-          settings,
-        );
+        return _buildRoute(const OnboardingSplashScreen(), settings);
 
       case AppRoutes.onboardingQuiz:
-        return _buildRoute(
-          const OnboardingQuizScreen(),
-          settings,
-        );
+        return _buildRoute(const OnboardingQuizScreen(), settings);
 
       case AppRoutes.onboardingChallenges:
-        return _buildRoute(
-          const OnboardingChallengesScreen(),
-          settings,
-        );
+        return _buildRoute(const OnboardingChallengesScreen(), settings);
 
       case AppRoutes.onboardingRoutine:
-        return _buildRoute(
-          const OnboardingRoutineBuilderScreen(),
-          settings,
-        );
+        return _buildRoute(const OnboardingRoutineBuilderScreen(), settings);
 
       case AppRoutes.signIn:
-        return _buildRoute(
-          const AuthScreen(isSignIn: true),
-          settings,
-        );
+        return _buildRoute(const AuthScreen(isSignIn: true), settings);
 
       case AppRoutes.signUp:
-        return _buildRoute(
-          const AuthScreen(isSignIn: false),
-          settings,
-        );
+        return _buildRoute(const AuthScreen(isSignIn: false), settings);
 
       // Legacy onboarding routes
       case AppRoutes.welcome:
-        return _buildRoute(
-          const WelcomeScreen(),
-          settings,
-        );
+        return _buildRoute(const WelcomeScreen(), settings);
 
       case AppRoutes.goalsInput:
-        return _buildRoute(
-          const GoalsInputScreen(),
-          settings,
-        );
+        return _buildRoute(const GoalsInputScreen(), settings);
 
       case AppRoutes.appSelection:
-        return _buildRoute(
-          const AppSelectionScreen(),
-          settings,
-        );
+        return _buildRoute(const AppSelectionScreen(), settings);
 
       case AppRoutes.onboardingSummary:
         return _buildRoute(
@@ -123,16 +95,13 @@ class AppRouter {
         );
 
       case AppRoutes.dashboard:
-        return _buildRoute(
-          const MainScreen(),
-          settings,
-        );
+        return _buildRoute(const MainScreen(), settings);
+
+      case AppRoutes.cozyDashboard:
+        return _buildRoute(const CozyMainScreen(), settings);
 
       case AppRoutes.progressChat:
-        return _buildRoute(
-          const ProgressChatScreen(),
-          settings,
-        );
+        return _buildRoute(const ProgressChatScreen(), settings);
 
       case AppRoutes.goalDiscovery:
         return _buildRoute(
@@ -174,10 +143,7 @@ class AppRouter {
         );
 
       default:
-        return _buildRoute(
-          const _NotFoundScreen(),
-          settings,
-        );
+        return _buildRoute(const _NotFoundScreen(), settings);
     }
   }
 
@@ -185,10 +151,7 @@ class AppRouter {
     Widget page,
     RouteSettings settings,
   ) {
-    return MaterialPageRoute<T>(
-      builder: (_) => page,
-      settings: settings,
-    );
+    return MaterialPageRoute<T>(builder: (_) => page, settings: settings);
   }
 }
 
@@ -212,16 +175,13 @@ class _PlaceholderScreen extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+            Text(title, style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 8),
             Text(
               'Coming soon...',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -247,10 +207,7 @@ class _NotFoundScreen extends StatelessWidget {
               color: Theme.of(context).colorScheme.error,
             ),
             const SizedBox(height: 16),
-            Text(
-              '404',
-              style: Theme.of(context).textTheme.displaySmall,
-            ),
+            Text('404', style: Theme.of(context).textTheme.displaySmall),
             const SizedBox(height: 8),
             Text(
               'Page not found',
@@ -258,9 +215,8 @@ class _NotFoundScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: () => Navigator.of(context).pushReplacementNamed(
-                AppRoutes.splash,
-              ),
+              onPressed: () =>
+                  Navigator.of(context).pushReplacementNamed(AppRoutes.splash),
               child: const Text('Go Home'),
             ),
           ],

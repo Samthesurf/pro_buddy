@@ -66,3 +66,5 @@ class DailyUsageSummaryCubit extends Cubit<DailyUsageSummaryState> {
     }
   }
 }
+
+
