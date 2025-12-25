@@ -8,9 +8,9 @@ import 'bloc/auth_cubit.dart';
 import 'bloc/auth_state.dart';
 import 'bloc/chat_cubit.dart';
 import 'bloc/progress_score_cubit.dart';
+import 'bloc/theme_cubit.dart';
 import 'core/core.dart';
 import 'services/onboarding_storage.dart';
-
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,22 +22,15 @@ Future<void> main() async {
   ]);
 
   // Initialize Firebase with generated options
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(
     MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (_) => AuthCubit(),
-        ),
-        BlocProvider(
-          create: (_) => ChatCubit(),
-        ),
-        BlocProvider(
-          create: (_) => ProgressScoreCubit()..loadLatest(),
-        ),
+        BlocProvider(create: (_) => ThemeCubit()),
+        BlocProvider(create: (_) => AuthCubit()),
+        BlocProvider(create: (_) => ChatCubit()),
+        BlocProvider(create: (_) => ProgressScoreCubit()..loadLatest()),
       ],
       child: const ProBuddyApp(),
     ),
@@ -49,18 +42,22 @@ class ProBuddyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppConstants.appName,
-      debugShowCheckedModeBanner: false,
+    return BlocBuilder<ThemeCubit, ThemeMode>(
+      builder: (context, themeMode) {
+        return MaterialApp(
+          title: AppConstants.appName,
+          debugShowCheckedModeBanner: false,
 
-      // Theme configuration
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+          // Theme configuration - Cozy theme is now the official light mode!
+          theme: CozyTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: themeMode,
 
-      // Navigation
-      onGenerateRoute: AppRouter.generateRoute,
-      home: const AuthWrapper(),
+          // Navigation
+          onGenerateRoute: AppRouter.generateRoute,
+          home: const AuthWrapper(),
+        );
+      },
     );
   }
 }
@@ -110,11 +107,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       listener: (context, state) {
         _checkAuth(state);
       },
-      child: const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      ),
+      child: const Scaffold(body: Center(child: CircularProgressIndicator())),
     );
   }
 }

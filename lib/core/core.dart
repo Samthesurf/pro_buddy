@@ -2,5 +2,7 @@
 library;
 
 export 'constants.dart';
+export 'cozy_theme.dart';
 export 'routes.dart';
 export 'theme.dart';
+export 'theme_colors.dart';

@@ -171,8 +171,10 @@ class CozyTheme {
       colorScheme: const ColorScheme.light(
         primary: CozyColors.primary,
         onPrimary: Colors.white,
-        primaryContainer: CozyColors.primaryLight,
-        onPrimaryContainer: CozyColors.onBackground,
+        primaryContainer: Color(
+          0xFFAD7F51,
+        ), // Darker brown for navigation indicator
+        onPrimaryContainer: Colors.white,
         secondary: CozyColors.accent,
         onSecondary: Colors.white,
         secondaryContainer: CozyColors.accentLight,

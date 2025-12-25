@@ -70,12 +70,23 @@ class CircularGaugeWidget extends StatelessWidget {
                 ),
               );
             },
-            child: Text(
-              label,
-              style: theme.textTheme.displayMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: size * 0.22,
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: size * 0.7, // Constrain to 70% of gauge size
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: theme.textTheme.displayMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: size * 0.18, // Reduced from 0.22 to 0.18
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.visible,
+                ),
               ),
             ),
           ),
@@ -145,4 +156,3 @@ class _GaugeTickPainter extends CustomPainter {
         oldDelegate.inactiveColor != inactiveColor;
   }
 }
-

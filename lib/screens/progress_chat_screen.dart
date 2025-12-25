@@ -6,7 +6,6 @@ import '../bloc/chat_cubit.dart';
 import '../bloc/progress_score_cubit.dart';
 import '../bloc/progress_summary_cubit.dart';
 import '../core/routes.dart';
-import '../core/theme.dart';
 import '../models/chat.dart';
 import '../services/api_service.dart';
 import '../services/notification_content.dart';
@@ -54,15 +53,13 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
       ),
     );
 
-    _promptSlideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _promptAnimationController,
-        curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
-      ),
-    );
+    _promptSlideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _promptAnimationController,
+            curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
+          ),
+        );
 
     _promptAnimationController.forward();
   }
@@ -147,7 +144,9 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
     // Save & Exit: send today's messages only.
     final chatState = context.read<ChatCubit>().state;
     final now = DateTime.now();
-    final todays = chatState.messages.where((m) => _isSameLocalDay(m.timestamp, now));
+    final todays = chatState.messages.where(
+      (m) => _isSameLocalDay(m.timestamp, now),
+    );
 
     final payload = todays
         .map(
@@ -166,17 +165,19 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
     }
 
     try {
-      final raw = await ApiService.instance.finalizeTodayProgress(messages: payload);
+      final raw = await ApiService.instance.finalizeTodayProgress(
+        messages: payload,
+      );
       final score = raw['score'] as Map<String, dynamic>?;
       if (score != null) {
         final scorePercent = (score['score_percent'] as num?)?.round() ?? 0;
         final reason = score['reason'] as String? ?? '';
         final dateUtc = score['date_utc'] as String? ?? '';
         context.read<ProgressScoreCubit>().setLatest(
-              scorePercent: scorePercent,
-              reason: reason,
-              dateUtc: dateUtc,
-            );
+          scorePercent: scorePercent,
+          reason: reason,
+          dateUtc: dateUtc,
+        );
         NotificationCache.saveLastProgressScore(
           LastProgressScore(
             scorePercent: scorePercent,
@@ -209,75 +210,76 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
         _handleBackPressed(context);
       },
       child: BlocConsumer<ChatCubit, ChatState>(
-      listenWhen: (previous, current) =>
-          previous.messages.length != current.messages.length ||
-          previous.isLoading != current.isLoading ||
-          previous.errorMessage != current.errorMessage,
-      listener: (context, state) {
-        _scrollToBottom();
+        listenWhen: (previous, current) =>
+            previous.messages.length != current.messages.length ||
+            previous.isLoading != current.isLoading ||
+            previous.errorMessage != current.errorMessage,
+        listener: (context, state) {
+          _scrollToBottom();
 
-        final latestMessage =
-            state.messages.isNotEmpty ? state.messages.last : null;
-        if (latestMessage?.role == MessageRole.assistant &&
-            latestMessage?.encouragementType == EncouragementType.celebrate) {
-          HapticFeedback.mediumImpact();
-        }
+          final latestMessage = state.messages.isNotEmpty
+              ? state.messages.last
+              : null;
+          if (latestMessage?.role == MessageRole.assistant &&
+              latestMessage?.encouragementType == EncouragementType.celebrate) {
+            HapticFeedback.mediumImpact();
+          }
 
-        final error = state.errorMessage;
-        if (error != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(error),
-              behavior: SnackBarBehavior.floating,
+          final error = state.errorMessage;
+          if (error != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(error),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            context.read<ChatCubit>().clearError();
+          }
+        },
+        builder: (context, state) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+
+          return Scaffold(
+            body: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? [
+                          theme.scaffoldBackgroundColor,
+                          theme.colorScheme.surface,
+                        ]
+                      : [
+                          theme.colorScheme.primary.withValues(alpha: 0.05),
+                          theme.scaffoldBackgroundColor,
+                        ],
+                ),
+              ),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    _buildHeader(context),
+                    Expanded(
+                      child: state.showInitialPrompt && state.messages.isEmpty
+                          ? _buildInitialPrompt(context)
+                          : _buildChatList(context, state),
+                    ),
+                    _buildInputArea(context, state),
+                  ],
+                ),
+              ),
             ),
           );
-          context.read<ChatCubit>().clearError();
-        }
-      },
-      builder: (context, state) {
-        final theme = Theme.of(context);
-        final isDark = theme.brightness == Brightness.dark;
-
-        return Scaffold(
-          body: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: isDark
-                    ? [
-                        AppColors.backgroundDark,
-                        AppColors.surfaceDark,
-                      ]
-                    : [
-                        AppColors.primary.withValues(alpha: 0.05),
-                        AppColors.background,
-                      ],
-              ),
-            ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _buildHeader(context),
-                  Expanded(
-                    child: state.showInitialPrompt && state.messages.isEmpty
-                        ? _buildInitialPrompt(context)
-                        : _buildChatList(context, state),
-                  ),
-                  _buildInputArea(context, state),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    ),
+        },
+      ),
     );
   }
 
   Widget _buildHeader(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -295,7 +297,10 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [AppColors.primary, AppColors.primaryLight],
+                colors: [
+                  theme.colorScheme.primary,
+                  theme.colorScheme.primary.withValues(alpha: 0.85),
+                ],
               ),
               borderRadius: BorderRadius.circular(12),
             ),
@@ -327,7 +332,8 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
             ),
           ),
           IconButton(
-            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.goalDiscovery),
+            onPressed: () =>
+                Navigator.of(context).pushNamed(AppRoutes.goalDiscovery),
             icon: const Icon(Icons.flag_rounded),
             tooltip: 'Goal Discovery',
             style: IconButton.styleFrom(
@@ -364,9 +370,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
             return SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Padding(
                   padding: const EdgeInsets.all(32),
                   child: Column(
@@ -381,15 +385,19 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              AppColors.primary,
-                              AppColors.primaryLight,
-                              AppColors.accent.withValues(alpha: 0.8),
+                              theme.colorScheme.primary,
+                              theme.colorScheme.primary.withValues(alpha: 0.8),
+                              theme.colorScheme.secondary.withValues(
+                                alpha: 0.6,
+                              ),
                             ],
                           ),
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.3),
+                              color: theme.colorScheme.primary.withValues(
+                                alpha: 0.3,
+                              ),
                               blurRadius: 20,
                               offset: const Offset(0, 8),
                             ),
@@ -402,7 +410,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
                         ),
                       ),
                       const SizedBox(height: 32),
-                      
+
                       // Greeting
                       Text(
                         greeting,
@@ -411,7 +419,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
                         ),
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Main question
                       Text(
                         "What's today's\nprogress?",
@@ -422,7 +430,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
                         ),
                       ),
                       const SizedBox(height: 24),
-                      
+
                       // Subtitle
                       Text(
                         "Share what you've accomplished, what you're working on, or any challenges you're facing.",
@@ -433,14 +441,17 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
                         ),
                       ),
                       const SizedBox(height: 40),
-                      
+
                       // Quick prompts
                       Wrap(
                         spacing: 12,
                         runSpacing: 12,
                         alignment: WrapAlignment.center,
                         children: [
-                          _buildQuickPrompt(context, "🎯 Made progress on my goals"),
+                          _buildQuickPrompt(
+                            context,
+                            "🎯 Made progress on my goals",
+                          ),
                           _buildQuickPrompt(context, "💪 Stayed focused today"),
                           _buildQuickPrompt(context, "🤔 Facing a challenge"),
                           _buildQuickPrompt(context, "✨ Small win to share"),
@@ -459,12 +470,12 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
 
   Widget _buildQuickPrompt(BuildContext context, String text) {
     final theme = Theme.of(context);
-    
+
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.05),
+            color: theme.colorScheme.primary.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -518,8 +529,9 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
@@ -534,7 +546,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: isUser
-                    ? AppColors.primary
+                    ? theme.colorScheme.primary
                     : theme.colorScheme.surface,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(20),
@@ -544,7 +556,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: (isUser ? AppColors.primary : Colors.black)
+                    color: (isUser ? theme.colorScheme.primary : Colors.black)
                         .withValues(alpha: 0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
@@ -571,22 +583,25 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
                       runSpacing: 4,
                       children: message.detectedTopics!
                           .take(3)
-                          .map((topic) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
+                          .map(
+                            (topic) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer
+                                    .withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                topic,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.primary,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primaryLight.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  topic,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              ))
+                              ),
+                            ),
+                          )
                           .toList(),
                     ),
                   ],
@@ -598,11 +613,11 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
             const SizedBox(width: 8),
             CircleAvatar(
               radius: 16,
-              backgroundColor: AppColors.primaryLight,
+              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.2),
               child: Icon(
                 Icons.person,
                 size: 18,
-                color: AppColors.primaryDark,
+                color: theme.colorScheme.primary,
               ),
             ),
           ],
@@ -612,26 +627,39 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
   }
 
   Widget _buildAvatar(BuildContext context, EncouragementType? type) {
+    final theme = Theme.of(context);
     IconData icon;
     List<Color> colors;
 
     switch (type) {
       case EncouragementType.celebrate:
         icon = Icons.celebration;
-        colors = [AppColors.success, AppColors.successLight];
+        colors = [
+          theme.colorScheme.tertiary,
+          theme.colorScheme.tertiary.withValues(alpha: 0.7),
+        ];
         break;
       case EncouragementType.support:
         icon = Icons.favorite;
-        colors = [AppColors.accent, AppColors.accentLight];
+        colors = [
+          theme.colorScheme.secondary,
+          theme.colorScheme.secondary.withValues(alpha: 0.7),
+        ];
         break;
       case EncouragementType.motivate:
         icon = Icons.local_fire_department;
-        colors = [AppColors.warning, AppColors.warningLight];
+        colors = [
+          theme.colorScheme.secondary,
+          theme.colorScheme.secondaryContainer,
+        ];
         break;
       case EncouragementType.curious:
       default:
         icon = Icons.auto_awesome;
-        colors = [AppColors.primary, AppColors.primaryLight];
+        colors = [
+          theme.colorScheme.primary,
+          theme.colorScheme.primaryContainer,
+        ];
     }
 
     return Container(
@@ -647,7 +675,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
 
   Widget _buildTypingIndicator(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -682,17 +710,24 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
   }
 
   Widget _buildTypingDot(int index) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 600 + (index * 200)),
-      builder: (context, value, child) {
-        return Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.3 + (0.7 * value)),
-            shape: BoxShape.circle,
-          ),
+    return Builder(
+      builder: (context) {
+        final theme = Theme.of(context);
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: Duration(milliseconds: 600 + (index * 200)),
+          builder: (context, value, child) {
+            return Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(
+                  alpha: 0.3 + (0.7 * value),
+                ),
+                shape: BoxShape.circle,
+              ),
+            );
+          },
         );
       },
     );
@@ -771,20 +806,22 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppColors.primary, AppColors.primaryLight],
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.primary.withValues(alpha: 0.85),
+                  ],
                 ),
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: IconButton(
-                onPressed:
-                    state.isLoading ? null : () => _handleSend(context),
+                onPressed: state.isLoading ? null : () => _handleSend(context),
                 icon: state.isLoading
                     ? const SizedBox(
                         width: 20,
@@ -839,10 +876,7 @@ class _ProgressSummarySheet extends StatelessWidget {
         final error = state.errorMessage;
         if (error != null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(error),
-              behavior: SnackBarBehavior.floating,
-            ),
+            SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
           );
           context.read<ProgressSummaryCubit>().clearError();
         }
@@ -875,33 +909,47 @@ class _ProgressSummarySheet extends StatelessWidget {
                   // Header
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.insights_rounded,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Progress Summary',
-                          style: theme.textTheme.titleLarge,
-                        ),
-                        const Spacer(),
-                        // Period selector
-                        SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(value: 'today', label: Text('Today')),
-                            ButtonSegment(value: 'week', label: Text('Week')),
-                            ButtonSegment(value: 'month', label: Text('Month')),
+                        // Title row
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.insights_rounded,
+                              color: theme.colorScheme.primary,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Progress Summary',
+                              style: theme.textTheme.titleLarge,
+                            ),
                           ],
-                          selected: {state.selectedPeriod},
-                          onSelectionChanged: (selection) {
-                            context
-                                .read<ProgressSummaryCubit>()
-                                .changePeriod(selection.first);
-                          },
-                          style: ButtonStyle(
-                            visualDensity: VisualDensity.compact,
+                        ),
+                        const SizedBox(height: 12),
+                        // Period selector
+                        Center(
+                          child: SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                value: 'today',
+                                label: Text('Today'),
+                              ),
+                              ButtonSegment(value: 'week', label: Text('Week')),
+                              ButtonSegment(
+                                value: 'month',
+                                label: Text('Month'),
+                              ),
+                            ],
+                            selected: {state.selectedPeriod},
+                            onSelectionChanged: (selection) {
+                              context.read<ProgressSummaryCubit>().changePeriod(
+                                selection.first,
+                              );
+                            },
+                            style: ButtonStyle(
+                              visualDensity: VisualDensity.compact,
+                            ),
                           ),
                         ),
                       ],
@@ -916,12 +964,12 @@ class _ProgressSummarySheet extends StatelessWidget {
                     child: state.isLoading
                         ? const Center(child: CircularProgressIndicator())
                         : state.summary == null
-                            ? _buildEmptyState(context)
-                            : _buildSummaryContent(
-                                context,
-                                scrollController,
-                                state.summary!,
-                              ),
+                        ? _buildEmptyState(context)
+                        : _buildSummaryContent(
+                            context,
+                            scrollController,
+                            state.summary!,
+                          ),
                   ),
                 ],
               );
@@ -939,11 +987,7 @@ class _ProgressSummarySheet extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.auto_awesome,
-            size: 48,
-            color: theme.colorScheme.outline,
-          ),
+          Icon(Icons.auto_awesome, size: 48, color: theme.colorScheme.outline),
           const SizedBox(height: 16),
           Text(
             'No progress data yet',
@@ -980,13 +1024,13 @@ class _ProgressSummarySheet extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppColors.primary.withValues(alpha: 0.1),
-                AppColors.primaryLight.withValues(alpha: 0.05),
+                theme.colorScheme.primary.withValues(alpha: 0.1),
+                theme.colorScheme.primaryContainer.withValues(alpha: 0.05),
               ],
             ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.2),
+              color: theme.colorScheme.primary.withValues(alpha: 0.2),
             ),
           ),
           child: Column(
@@ -994,12 +1038,12 @@ class _ProgressSummarySheet extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.lightbulb, color: AppColors.primary),
+                  Icon(Icons.lightbulb, color: theme.colorScheme.primary),
                   const SizedBox(width: 8),
                   Text(
                     'AI Insight',
                     style: theme.textTheme.titleMedium?.copyWith(
-                      color: AppColors.primary,
+                      color: theme.colorScheme.primary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1008,9 +1052,7 @@ class _ProgressSummarySheet extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 summary.aiInsight,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  height: 1.5,
-                ),
+                style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
               ),
             ],
           ),
@@ -1027,7 +1069,7 @@ class _ProgressSummarySheet extends StatelessWidget {
                 icon: Icons.edit_note,
                 label: 'Entries',
                 value: summary.totalEntries.toString(),
-                color: AppColors.primary,
+                color: theme.colorScheme.primary,
               ),
             ),
             const SizedBox(width: 12),
@@ -1037,7 +1079,7 @@ class _ProgressSummarySheet extends StatelessWidget {
                 icon: Icons.emoji_events,
                 label: 'Achievements',
                 value: summary.keyAchievements.length.toString(),
-                color: AppColors.success,
+                color: theme.colorScheme.tertiary,
               ),
             ),
           ],
@@ -1054,35 +1096,35 @@ class _ProgressSummarySheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...summary.keyAchievements.map((achievement) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        Icons.check,
-                        size: 16,
-                        color: AppColors.success,
-                      ),
+          ...summary.keyAchievements.map(
+            (achievement) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.tertiary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        achievement,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          height: 1.4,
-                        ),
-                      ),
+                    child: Icon(
+                      Icons.check,
+                      size: 16,
+                      color: theme.colorScheme.tertiary,
                     ),
-                  ],
-                ),
-              )),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      achievement,
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
 
         const SizedBox(height: 24),
@@ -1096,35 +1138,35 @@ class _ProgressSummarySheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...summary.recurringChallenges.map((challenge) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppColors.warning.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        Icons.flag,
-                        size: 16,
-                        color: AppColors.warning,
-                      ),
+          ...summary.recurringChallenges.map(
+            (challenge) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.secondary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        challenge,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          height: 1.4,
-                        ),
-                      ),
+                    child: Icon(
+                      Icons.flag,
+                      size: 16,
+                      color: theme.colorScheme.secondary,
                     ),
-                  ],
-                ),
-              )),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      challenge,
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ],
     );

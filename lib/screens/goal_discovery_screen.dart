@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/goal_discovery_cubit.dart';
 import '../core/routes.dart';
-import '../core/theme.dart';
 import '../models/chat.dart';
 import '../services/notification_content.dart';
 
@@ -124,13 +123,10 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: isDark
-                    ? [
-                        AppColors.backgroundDark,
-                        AppColors.surfaceDark,
-                      ]
+                    ? [theme.colorScheme.surface, theme.scaffoldBackgroundColor]
                     : [
-                        AppColors.accent.withValues(alpha: 0.06),
-                        AppColors.background,
+                        theme.colorScheme.secondary.withValues(alpha: 0.06),
+                        theme.scaffoldBackgroundColor,
                       ],
               ),
             ),
@@ -141,13 +137,13 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
                     title: title,
                     showSkipToApps: _fromOnboarding,
                     showSkipOnboarding: _fromOnboarding,
-                    onSkipOnboarding: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      AppRoutes.dashboard,
-                      (route) => false,
-                    ),
-                    onSkipToApps: () => Navigator.of(context).pushNamed(
-                      AppRoutes.appSelection,
-                    ),
+                    onSkipOnboarding: () =>
+                        Navigator.of(context).pushNamedAndRemoveUntil(
+                          AppRoutes.dashboard,
+                          (route) => false,
+                        ),
+                    onSkipToApps: () =>
+                        Navigator.of(context).pushNamed(AppRoutes.appSelection),
                   ),
                   Expanded(
                     child: ListView.builder(
@@ -156,7 +152,8 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
                         horizontal: 16,
                         vertical: 12,
                       ),
-                      itemCount: state.messages.length + (state.isLoading ? 1 : 0),
+                      itemCount:
+                          state.messages.length + (state.isLoading ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (index == state.messages.length && state.isLoading) {
                           return _TypingBubble();
@@ -179,9 +176,8 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
           ),
           floatingActionButton: state.done
               ? FloatingActionButton.extended(
-                  onPressed: () => Navigator.of(context).pushNamed(
-                    AppRoutes.appSelection,
-                  ),
+                  onPressed: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.appSelection),
                   label: const Text('Next: Select Apps'),
                   icon: const Icon(Icons.apps_rounded),
                 )
@@ -227,33 +223,46 @@ class _Header extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [AppColors.accent, AppColors.accentLight],
+                colors: [
+                  theme.colorScheme.secondary,
+                  theme.colorScheme.secondary.withValues(alpha: 0.8),
+                ],
               ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.flag_rounded, color: Colors.white, size: 20),
+            child: const Icon(
+              Icons.flag_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   title,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  'So notifications actually “get” your goals',
+                  'So notifications actually "get" your goals',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          if (showSkipOnboarding) ...[
+          const SizedBox(width: 8),
+          if (showSkipOnboarding)
             IconButton(
               tooltip: 'Skip onboarding',
               onPressed: onSkipOnboarding,
@@ -263,9 +272,7 @@ class _Header extends StatelessWidget {
                 foregroundColor: theme.colorScheme.primary,
               ),
             ),
-            const SizedBox(width: 8),
-          ],
-          if (showSkipToApps) ...[
+          if (showSkipToApps)
             IconButton(
               tooltip: 'Skip to app selection',
               onPressed: onSkipToApps,
@@ -275,11 +282,10 @@ class _Header extends StatelessWidget {
                 foregroundColor: theme.colorScheme.primary,
               ),
             ),
-            const SizedBox(width: 8),
-          ],
           IconButton(
             tooltip: 'Restart',
-            onPressed: () => context.read<GoalDiscoveryCubit>().start(reset: true),
+            onPressed: () =>
+                context.read<GoalDiscoveryCubit>().start(reset: true),
             icon: const Icon(Icons.refresh_rounded),
             style: IconButton.styleFrom(
               backgroundColor: theme.colorScheme.surface,
@@ -304,13 +310,17 @@ class _MessageBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isUser ? AppColors.primary : theme.colorScheme.surface,
+                color: isUser
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.surface,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(18),
                   topRight: const Radius.circular(18),
@@ -319,7 +329,7 @@ class _MessageBubble extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: (isUser ? AppColors.primary : Colors.black)
+                    color: (isUser ? theme.colorScheme.primary : Colors.black)
                         .withValues(alpha: 0.08),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
@@ -378,6 +388,7 @@ class _Dot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: Duration(milliseconds: 700 + delayMs),
@@ -385,7 +396,9 @@ class _Dot extends StatelessWidget {
         width: 8,
         height: 8,
         decoration: BoxDecoration(
-          color: AppColors.accent.withValues(alpha: 0.25 + (0.7 * value)),
+          color: theme.colorScheme.secondary.withValues(
+            alpha: 0.25 + (0.7 * value),
+          ),
           shape: BoxShape.circle,
         ),
       ),
@@ -456,7 +469,10 @@ class _InputBar extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppColors.accent, AppColors.accentLight],
+                  colors: [
+                    theme.colorScheme.secondary,
+                    theme.colorScheme.secondary.withValues(alpha: 0.8),
+                  ],
                 ),
                 borderRadius: BorderRadius.circular(24),
               ),

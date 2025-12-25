@@ -5,6 +5,7 @@ import '../bloc/auth_cubit.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
+import '../widgets/theme_switcher.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -700,9 +701,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildActionsCard() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Theme Switcher Section
+            Text(
+              'Appearance',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const ThemeSwitcher(),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
             ListTile(
               leading: const Icon(Icons.flag_rounded),
               title: const Text('Start New Goal Discovery'),
@@ -713,19 +728,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   AppRoutes.goalDiscovery,
                   arguments: {'fromOnboarding': false},
                 );
-              },
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: Icon(
-                Icons.palette_rounded,
-                color: const Color(0xFFD4915C), // Cozy amber color
-              ),
-              title: const Text('Preview Cozy Theme'),
-              subtitle: const Text('Compare the warm, cozy color scheme'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () {
-                Navigator.of(context).pushNamed(AppRoutes.cozyDashboard);
               },
             ),
             const Divider(height: 1),

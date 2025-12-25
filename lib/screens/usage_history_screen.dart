@@ -20,7 +20,10 @@ class UsageHistoryScreen extends StatelessWidget {
             pinned: true,
             backgroundColor: Theme.of(context).colorScheme.surface,
             flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              titlePadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
               title: Text(
                 'Usage History',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -33,7 +36,9 @@ class UsageHistoryScreen extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      AppColors.primary.withValues(alpha: 0.1),
+                      Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.1),
                       Theme.of(context).colorScheme.surface,
                     ],
                   ),
@@ -50,21 +55,16 @@ class UsageHistoryScreen extends StatelessWidget {
               }
 
               if (state.items.isEmpty) {
-                return SliverFillRemaining(
-                  child: _buildEmptyState(context),
-                );
+                return SliverFillRemaining(child: _buildEmptyState(context));
               }
 
               return SliverPadding(
                 padding: const EdgeInsets.all(16),
                 sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final item = state.items[index];
-                      return _buildHistoryItem(context, item);
-                    },
-                    childCount: state.items.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final item = state.items[index];
+                    return _buildHistoryItem(context, item);
+                  }, childCount: state.items.length),
                 ),
               );
             },
@@ -77,7 +77,7 @@ class UsageHistoryScreen extends StatelessWidget {
 
   Widget _buildEmptyState(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -87,13 +87,13 @@ class UsageHistoryScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: theme.colorScheme.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.history_rounded,
                 size: 64,
-                color: AppColors.primary,
+                color: theme.colorScheme.primary,
               ),
             ),
             const SizedBox(height: 24),
@@ -128,10 +128,10 @@ class UsageHistoryScreen extends StatelessWidget {
 
   Widget _buildHistoryItem(BuildContext context, UsageFeedback item) {
     final theme = Theme.of(context);
-    
+
     Color alignmentColor;
     IconData alignmentIcon;
-    
+
     switch (item.alignment) {
       case AlignmentStatus.aligned:
         alignmentColor = AppColors.success;
@@ -148,7 +148,7 @@ class UsageHistoryScreen extends StatelessWidget {
     }
 
     final timeAgo = _formatTimeAgo(item.createdAt);
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -213,7 +213,8 @@ class UsageHistoryScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -249,5 +250,3 @@ class UsageHistoryScreen extends StatelessWidget {
     }
   }
 }
-
-

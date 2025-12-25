@@ -175,11 +175,14 @@ class DashboardScreen extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryDark],
+          colors: [
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0.85),
+          ],
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -327,6 +330,8 @@ class DashboardScreen extends StatelessWidget {
                   IconData icon;
                   Color color;
                   String time = state.productiveTime;
+                  final isDark =
+                      Theme.of(context).brightness == Brightness.dark;
 
                   switch (time.toLowerCase()) {
                     case 'morning':
@@ -340,7 +345,10 @@ class DashboardScreen extends StatelessWidget {
                     case 'evening':
                     case 'night':
                       icon = Icons.nightlight_round;
-                      color = const Color(0xFF5856D6); // Indigo/Purple
+                      // Brown in cozy mode, purple in dark mode
+                      color = isDark
+                          ? const Color(0xFF5856D6) // Purple for dark
+                          : const Color(0xFF8B6F47); // Brown for cozy
                       break;
                     default:
                       icon = Icons.schedule_rounded;
@@ -710,14 +718,19 @@ class DashboardScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [AppColors.primary, AppColors.primaryLight],
+              colors: [
+                Theme.of(context).colorScheme.primary,
+                Theme.of(context).colorScheme.primary.withValues(alpha: 0.85),
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.4),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.4),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
