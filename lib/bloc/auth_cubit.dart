@@ -13,29 +13,51 @@ class AuthCubit extends Cubit<AuthState> {
   late StreamSubscription<User?> _userSubscription;
 
   AuthCubit({AuthService? authService})
-      : _authService = authService ?? AuthService.instance,
-        super(AuthState.initial()) {
+    : _authService = authService ?? AuthService.instance,
+      super(AuthState.initial()) {
     _init();
   }
 
   void _init() {
     _userSubscription = _authService.authStateChanges.listen((user) async {
       if (user != null) {
-        // Once a user signs in on this install, we should never show onboarding again
-        // (onboarding is only for brand new installs/users).
-        await OnboardingStorage.setHasSeenOnboarding(true);
+        // Check if this is a different user than who was previously onboarded on this device
+        final lastOnboardedUserId =
+            await OnboardingStorage.getLastOnboardedUserId();
+        final isNewUserOnDevice =
+            lastOnboardedUserId != null && lastOnboardedUserId != user.uid;
 
-        // Fetch user profile to check onboarding status
+        if (isNewUserOnDevice) {
+          // A different user just signed in - clear any cached onboarding state
+          // so we rely purely on backend's onboarding_complete flag
+          await OnboardingStorage.clearOnboardingState();
+          print(
+            'Different user detected. Previous: $lastOnboardedUserId, Current: ${user.uid}',
+          );
+        }
+
+        // Fetch user profile to check onboarding status from the BACKEND (source of truth)
         try {
           final profile = await ApiService.instance.getUserProfile();
-          final isOnboardingComplete = profile['onboarding_complete'] as bool? ?? false;
-          emit(AuthState.authenticated(user, isOnboardingComplete: isOnboardingComplete));
+          final isOnboardingComplete =
+              profile['onboarding_complete'] as bool? ?? false;
+
+          // Only set local onboarding flags if backend confirms onboarding is complete
+          // This prevents new users from accidentally skipping onboarding
+          if (isOnboardingComplete) {
+            await OnboardingStorage.setHasSeenOnboarding(true);
+            await OnboardingStorage.setLastOnboardedUserId(user.uid);
+          }
+
+          emit(
+            AuthState.authenticated(
+              user,
+              isOnboardingComplete: isOnboardingComplete,
+            ),
+          );
         } catch (e) {
           // If fetch fails (e.g. backend down or user not created yet),
           // default to false (show onboarding) to be safe for new users.
-          // For existing users with network issues, this might force onboarding check again
-          // which is acceptable or we could add a "checkLater" logic.
-          // For now, assume false.
           print('Error fetching user profile: $e');
           emit(AuthState.authenticated(user, isOnboardingComplete: false));
         }
@@ -54,10 +76,9 @@ class AuthCubit extends Cubit<AuthState> {
       await _authService.signInWithEmail(email: email, password: password);
       // State updated via stream listener
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: _mapErrorToMessage(e),
-      ));
+      emit(
+        state.copyWith(isLoading: false, errorMessage: _mapErrorToMessage(e)),
+      );
     }
   }
 
@@ -69,13 +90,15 @@ class AuthCubit extends Cubit<AuthState> {
     emit(state.copyWith(isLoading: true, errorMessage: null));
     try {
       await _authService.signUpWithEmail(
-          email: email, password: password, name: name);
+        email: email,
+        password: password,
+        name: name,
+      );
       // State updated via stream listener
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: _mapErrorToMessage(e),
-      ));
+      emit(
+        state.copyWith(isLoading: false, errorMessage: _mapErrorToMessage(e)),
+      );
     }
   }
 
@@ -89,10 +112,9 @@ class AuthCubit extends Cubit<AuthState> {
       }
       // State updated via stream listener
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: _mapErrorToMessage(e),
-      ));
+      emit(
+        state.copyWith(isLoading: false, errorMessage: _mapErrorToMessage(e)),
+      );
     }
   }
 
@@ -114,15 +136,20 @@ class AuthCubit extends Cubit<AuthState> {
       // Since we don't sign out, the stream listener won't fire a "new user" event necessarily,
       // but we updated the backend state to onboarding_complete=false.
       // We should manually emit the state change or re-fetch profile.
-      
+
+      // Clear local onboarding state to match backend
+      await OnboardingStorage.clearOnboardingState();
+
       if (state.user != null) {
         emit(AuthState.authenticated(state.user!, isOnboardingComplete: false));
       }
     } catch (e) {
-       emit(state.copyWith(
-        isLoading: false,
-        errorMessage: 'Failed to reset account: $e',
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: 'Failed to reset account: $e',
+        ),
+      );
     }
   }
 

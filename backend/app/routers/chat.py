@@ -41,6 +41,7 @@ async def report_progress(
     Report daily progress and get an encouraging AI response.
     
     The progress is stored in the vector database for future context.
+    Supports both text and voice input via audio_data field.
     """
     user_id = user["uid"]
     
@@ -49,6 +50,36 @@ async def report_progress(
     vectorize = request.app.state.vectorize
     
     try:
+        # Handle audio transcription if audio data is provided
+        user_message = body.message
+        if body.audio_data and body.is_voice:
+            import base64
+            try:
+                # Decode base64 audio data
+                audio_bytes = base64.b64decode(body.audio_data)
+                mime_type = body.audio_mime_type or "audio/wav"
+                
+                # Transcribe audio using Gemini
+                transcribed_text = await gemini.transcribe_audio(
+                    audio_data=audio_bytes,
+                    mime_type=mime_type,
+                )
+                
+                if transcribed_text:
+                    user_message = transcribed_text
+                    print(f"Audio transcribed: {transcribed_text[:100]}...")
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Failed to transcribe audio. Please try again."
+                    )
+            except Exception as e:
+                print(f"Error processing audio: {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to process audio: {str(e)}"
+                )
+        
         # Get user context (goals and recent progress)
         user_context = await vectorize.get_user_context(user_id)
         recent_progress = await vectorize.get_recent_progress(user_id, n_results=5)
@@ -62,7 +93,7 @@ async def report_progress(
         
         # Generate AI response
         ai_result = await gemini.process_progress_report(
-            user_message=body.message,
+            user_message=user_message,
             user_goals=user_context.get("goals", []),
             recent_progress=recent_progress,
             conversation_history=history_formatted,
@@ -80,7 +111,7 @@ async def report_progress(
         await vectorize.store_progress_entry(
             user_id=user_id,
             entry_id=entry_id,
-            content=body.message,
+            content=user_message,  # Store transcribed text if voice
             ai_response=full_message,
             topics=ai_result.get("detected_topics", []),
             date=timestamp,
@@ -94,7 +125,7 @@ async def report_progress(
             user_id=user_id,
             message_id=user_msg_id,
             role="user",
-            content=body.message,
+            content=user_message,  # Store transcribed text if voice
             timestamp=timestamp,
         )
         
@@ -114,12 +145,17 @@ async def report_progress(
             detected_topics=ai_result.get("detected_topics", []),
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error in progress report: {e}")
         raise HTTPException(
             status_code=500,
             detail="Failed to process progress report"
         )
+
+
+
 
 
 @router.post("/message", response_model=ChatResponse)

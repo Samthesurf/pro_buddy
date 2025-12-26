@@ -25,11 +25,13 @@ class ApiService {
     _dio.interceptors.add(AuthInterceptor());
 
     // Add logging interceptor for debug
-    _dio.interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: (obj) => print('[API] $obj'),
-    ));
+    _dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        logPrint: (obj) => print('[API] $obj'),
+      ),
+    );
   }
 
   static ApiService get instance {
@@ -67,11 +69,10 @@ class ApiService {
     String? reason,
     String? timeline,
   }) async {
-    final response = await _dio.post('/onboarding/goals', data: {
-      'content': content,
-      'reason': reason,
-      'timeline': timeline,
-    });
+    final response = await _dio.post(
+      '/onboarding/goals',
+      data: {'content': content, 'reason': reason, 'timeline': timeline},
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -79,9 +80,7 @@ class ApiService {
   Future<Map<String, dynamic>> saveAppSelections({
     required List<Map<String, dynamic>> apps,
   }) async {
-    final response = await _dio.post('/onboarding/apps', data: {
-      'apps': apps,
-    });
+    final response = await _dio.post('/onboarding/apps', data: {'apps': apps});
     return response.data as Map<String, dynamic>;
   }
 
@@ -101,15 +100,18 @@ class ApiService {
     String productiveTime = 'Morning',
     String checkInFrequency = 'Daily',
   }) async {
-    final response = await _dio.post('/onboarding/preferences', data: {
-      'challenges': challenges,
-      'habits': habits,
-      'distraction_hours': distractionHours,
-      'focus_duration_minutes': focusDurationMinutes,
-      'goal_clarity': goalClarity,
-      'productive_time': productiveTime,
-      'check_in_frequency': checkInFrequency,
-    });
+    final response = await _dio.post(
+      '/onboarding/preferences',
+      data: {
+        'challenges': challenges,
+        'habits': habits,
+        'distraction_hours': distractionHours,
+        'focus_duration_minutes': focusDurationMinutes,
+        'goal_clarity': goalClarity,
+        'productive_time': productiveTime,
+        'check_in_frequency': checkInFrequency,
+      },
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -132,11 +134,14 @@ class ApiService {
     String? reason,
     String? timeline,
   }) async {
-    final response = await _dio.put('/onboarding/goals/$goalId', data: {
-      if (content != null) 'content': content,
-      if (reason != null) 'reason': reason,
-      if (timeline != null) 'timeline': timeline,
-    });
+    final response = await _dio.put(
+      '/onboarding/goals/$goalId',
+      data: {
+        if (content != null) 'content': content,
+        if (reason != null) 'reason': reason,
+        if (timeline != null) 'timeline': timeline,
+      },
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -147,9 +152,10 @@ class ApiService {
 
   /// Start the goal discovery / notification profile conversation
   Future<Map<String, dynamic>> startGoalDiscovery({bool reset = false}) async {
-    final response = await _dio.post('/onboarding/goal-discovery/start', data: {
-      'reset': reset,
-    });
+    final response = await _dio.post(
+      '/onboarding/goal-discovery/start',
+      data: {'reset': reset},
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -158,10 +164,10 @@ class ApiService {
     required String sessionId,
     required String message,
   }) async {
-    final response = await _dio.post('/onboarding/goal-discovery/message', data: {
-      'session_id': sessionId,
-      'message': message,
-    });
+    final response = await _dio.post(
+      '/onboarding/goal-discovery/message',
+      data: {'session_id': sessionId, 'message': message},
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -178,10 +184,10 @@ class ApiService {
     required String packageName,
     required String appName,
   }) async {
-    final response = await _dio.post('/monitor/app-usage', data: {
-      'package_name': packageName,
-      'app_name': appName,
-    });
+    final response = await _dio.post(
+      '/monitor/app-usage',
+      data: {'package_name': packageName, 'app_name': appName},
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -191,19 +197,23 @@ class ApiService {
     DateTime? endDate,
     int? limit,
   }) async {
-    final response = await _dio.get('/monitor/history', queryParameters: {
-      if (startDate != null) 'start_date': startDate.toIso8601String(),
-      if (endDate != null) 'end_date': endDate.toIso8601String(),
-      if (limit != null) 'limit': limit,
-    });
+    final response = await _dio.get(
+      '/monitor/history',
+      queryParameters: {
+        if (startDate != null) 'start_date': startDate.toIso8601String(),
+        if (endDate != null) 'end_date': endDate.toIso8601String(),
+        if (limit != null) 'limit': limit,
+      },
+    );
     return response.data as Map<String, dynamic>;
   }
 
   /// Get daily summary
   Future<Map<String, dynamic>> getDailySummary({DateTime? date}) async {
-    final response = await _dio.get('/monitor/summary', queryParameters: {
-      if (date != null) 'date': date.toIso8601String(),
-    });
+    final response = await _dio.get(
+      '/monitor/summary',
+      queryParameters: {if (date != null) 'date': date.toIso8601String()},
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -213,11 +223,18 @@ class ApiService {
   Future<Map<String, dynamic>> reportProgress({
     required String message,
     bool isVoice = false,
+    String? audioBase64, // Base64-encoded audio data
+    String? audioMimeType, // e.g., "audio/wav", "audio/mp4"
   }) async {
-    final response = await _dio.post('/chat/progress', data: {
-      'message': message,
-      'is_voice': isVoice,
-    });
+    final response = await _dio.post(
+      '/chat/progress',
+      data: {
+        'message': message,
+        'is_voice': isVoice,
+        if (audioBase64 != null) 'audio_data': audioBase64,
+        if (audioMimeType != null) 'audio_mime_type': audioMimeType,
+      },
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -227,19 +244,23 @@ class ApiService {
     bool includeHistory = true,
     int historyLimit = 10,
   }) async {
-    final response = await _dio.post('/chat/message', data: {
-      'message': message,
-      'include_history': includeHistory,
-      'history_limit': historyLimit,
-    });
+    final response = await _dio.post(
+      '/chat/message',
+      data: {
+        'message': message,
+        'include_history': includeHistory,
+        'history_limit': historyLimit,
+      },
+    );
     return response.data as Map<String, dynamic>;
   }
 
   /// Get conversation history
   Future<Map<String, dynamic>> getChatHistory({int limit = 20}) async {
-    final response = await _dio.get('/chat/history', queryParameters: {
-      'limit': limit,
-    });
+    final response = await _dio.get(
+      '/chat/history',
+      queryParameters: {'limit': limit},
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -247,9 +268,10 @@ class ApiService {
   Future<Map<String, dynamic>> getProgressSummary({
     String period = 'week',
   }) async {
-    final response = await _dio.get('/chat/summary', queryParameters: {
-      'period': period,
-    });
+    final response = await _dio.get(
+      '/chat/summary',
+      queryParameters: {'period': period},
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -258,10 +280,10 @@ class ApiService {
     required String query,
     int limit = 10,
   }) async {
-    final response = await _dio.get('/chat/progress/search', queryParameters: {
-      'query': query,
-      'limit': limit,
-    });
+    final response = await _dio.get(
+      '/chat/progress/search',
+      queryParameters: {'query': query, 'limit': limit},
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -269,9 +291,10 @@ class ApiService {
   Future<Map<String, dynamic>> finalizeTodayProgress({
     required List<Map<String, dynamic>> messages,
   }) async {
-    final response = await _dio.post('/chat/finalize-today', data: {
-      'messages': messages,
-    });
+    final response = await _dio.post(
+      '/chat/finalize-today',
+      data: {'messages': messages},
+    );
     return response.data as Map<String, dynamic>;
   }
 
@@ -283,9 +306,10 @@ class ApiService {
 
   /// Get progress score history (for streak calculation)
   Future<Map<String, dynamic>> getProgressScoreHistory({int limit = 30}) async {
-    final response = await _dio.get('/chat/progress-score/history', queryParameters: {
-      'limit': limit,
-    });
+    final response = await _dio.get(
+      '/chat/progress-score/history',
+      queryParameters: {'limit': limit},
+    );
     return response.data as Map<String, dynamic>;
   }
 }

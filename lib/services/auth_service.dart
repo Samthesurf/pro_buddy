@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'api_service.dart';
+import 'onboarding_storage.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._();
@@ -25,10 +26,10 @@ class AuthService {
         email: email,
         password: password,
       );
-      
+
       // Sync with backend
       await _syncWithBackend();
-      
+
       return credential;
     } catch (e) {
       debugPrint('Error signing in with email: $e');
@@ -47,15 +48,15 @@ class AuthService {
         email: email,
         password: password,
       );
-      
+
       // Update display name
       if (credential.user != null) {
         await credential.user!.updateDisplayName(name);
       }
-      
+
       // Sync with backend
       await _syncWithBackend();
-      
+
       return credential;
     } catch (e) {
       debugPrint('Error signing up with email: $e');
@@ -71,7 +72,8 @@ class AuthService {
       if (googleUser == null) return null; // User canceled
 
       // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
       // Create a new credential
       final credential = GoogleAuthProvider.credential(
@@ -81,10 +83,10 @@ class AuthService {
 
       // Once signed in, return the UserCredential
       final userCredential = await _auth.signInWithCredential(credential);
-      
+
       // Sync with backend
       await _syncWithBackend();
-      
+
       return userCredential;
     } catch (e) {
       debugPrint('Error signing in with Google: $e');
@@ -95,6 +97,13 @@ class AuthService {
   /// Sign out
   Future<void> signOut() async {
     try {
+      // Clear local onboarding state BEFORE signing out.
+      // This ensures that if a NEW user signs in on this device,
+      // they will get the proper onboarding experience.
+      // The backend's onboarding_complete flag is the source of truth
+      // for existing users - we'll check that when they sign back in.
+      await OnboardingStorage.clearOnboardingState();
+
       await _googleSignIn.signOut();
       await _auth.signOut();
     } catch (e) {
@@ -114,7 +123,7 @@ class AuthService {
       rethrow;
     }
   }
-  
+
   /// Sync user with backend
   Future<void> _syncWithBackend() async {
     try {
@@ -126,7 +135,7 @@ class AuthService {
       // In a real app, you might retry or show a specific error.
       debugPrint('Failed to sync with backend: $e');
       // If strictly required, rethrow
-      // rethrow; 
+      // rethrow;
     }
   }
 }

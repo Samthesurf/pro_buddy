@@ -18,12 +18,12 @@ class ProgressScoreState {
   });
 
   factory ProgressScoreState.initial() => const ProgressScoreState(
-        scorePercent: null,
-        reason: null,
-        dateUtc: null,
-        isLoading: false,
-        errorMessage: null,
-      );
+    scorePercent: null,
+    reason: null,
+    dateUtc: null,
+    isLoading: false,
+    errorMessage: null,
+  );
 
   ProgressScoreState copyWith({
     int? scorePercent,
@@ -45,8 +45,8 @@ class ProgressScoreState {
 
 class ProgressScoreCubit extends Cubit<ProgressScoreState> {
   ProgressScoreCubit({ApiService? apiService})
-      : _apiService = apiService ?? ApiService.instance,
-        super(ProgressScoreState.initial());
+    : _apiService = apiService ?? ApiService.instance,
+      super(ProgressScoreState.initial());
 
   final ApiService _apiService;
 
@@ -97,5 +97,11 @@ class ProgressScoreCubit extends Cubit<ProgressScoreState> {
     if (state.errorMessage != null) {
       emit(state.copyWith(clearError: true));
     }
+  }
+
+  /// Reset all progress score state. Call this when the user signs out
+  /// to prevent stale data from appearing for a different user.
+  void reset() {
+    emit(ProgressScoreState.initial());
   }
 }

@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../bloc/chat_cubit.dart';
 import '../bloc/progress_score_cubit.dart';
@@ -26,6 +31,9 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+
+  bool _isRecording = false;
 
   late AnimationController _promptAnimationController;
   late Animation<double> _promptFadeAnimation;
@@ -70,6 +78,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
     _scrollController.dispose();
     _focusNode.dispose();
     _promptAnimationController.dispose();
+    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -97,6 +106,123 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
     _focusNode.requestFocus();
     chatCubit.sendMessage(text);
     _scrollToBottom();
+  }
+
+  Future<void> _handleVoiceInput(BuildContext context) async {
+    if (_isRecording) {
+      // Stop recording and send
+      await _stopRecordingAndSend(context);
+    } else {
+      // Start recording
+      await _startRecording(context);
+    }
+  }
+
+  Future<void> _startRecording(BuildContext context) async {
+    // Check and request microphone permission
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Microphone permission is required for voice input'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    try {
+      // Get temporary directory
+      final tempDir = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final path = '${tempDir.path}/recording_$timestamp.m4a';
+
+      // Start recording
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+        ),
+        path: path,
+      );
+
+      setState(() {
+        _isRecording = true;
+      });
+
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+    } catch (e) {
+      print('Error starting recording: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to start recording'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _stopRecordingAndSend(BuildContext context) async {
+    try {
+      // Stop recording
+      final path = await _audioRecorder.stop();
+
+      setState(() {
+        _isRecording = false;
+      });
+
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+
+      if (path == null || path.isEmpty) {
+        throw Exception('Recording path is null');
+      }
+
+      // Read audio file
+      final audioFile = File(path);
+      if (!await audioFile.exists()) {
+        throw Exception('Recording file does not exist');
+      }
+
+      final audioBytes = await audioFile.readAsBytes();
+      final audioBase64 = base64Encode(audioBytes);
+
+      // Send to chat cubit
+      if (!mounted) return;
+      final chatCubit = context.read<ChatCubit>();
+      if (chatCubit.state.isLoading) return;
+
+      // Show a loading indicator
+      chatCubit.sendVoiceMessage(
+        audioBase64: audioBase64,
+        audioMimeType: 'audio/mp4',
+      );
+      _scrollToBottom();
+
+      // Clean up the recording file
+      try {
+        await audioFile.delete();
+      } catch (e) {
+        print('Error deleting recording file: $e');
+      }
+    } catch (e) {
+      print('Error stopping recording: $e');
+      setState(() {
+        _isRecording = false;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to process voice recording'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   bool _isSameLocalDay(DateTime a, DateTime b) {
@@ -781,20 +907,20 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
                         onSubmitted: (_) => _handleSend(context),
                       ),
                     ),
-                    // Voice input button (placeholder)
+                    // Voice input button
                     IconButton(
-                      onPressed: () {
-                        // TODO: Implement voice input
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Voice input coming soon!'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      icon: Icon(
-                        Icons.mic_rounded,
-                        color: theme.colorScheme.onSurfaceVariant,
+                      onPressed: state.isLoading
+                          ? null
+                          : () => _handleVoiceInput(context),
+                      icon: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+                          key: ValueKey(_isRecording),
+                          color: _isRecording
+                              ? theme.colorScheme.error
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ],

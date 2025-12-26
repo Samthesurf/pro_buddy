@@ -27,6 +27,9 @@ class ProgressReportRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     # Optional: for voice transcription flag
     is_voice: bool = False
+    # Optional: base64-encoded audio data (for voice input)
+    audio_data: Optional[str] = None
+    audio_mime_type: Optional[str] = None  # e.g., "audio/wav", "audio/mp4"
 
 
 class ProgressReportResponse(BaseModel):

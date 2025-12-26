@@ -263,6 +263,48 @@ Keep it warm, personal, and motivating. Respond with just the summary, no additi
             print(f"Error generating embedding: {e}")
             return None
 
+    async def transcribe_audio(
+        self,
+        audio_data: bytes,
+        mime_type: str = "audio/wav",
+    ) -> Optional[str]:
+        """
+        Transcribe audio using Gemini's multimodal capabilities.
+
+        Args:
+            audio_data: Raw audio bytes
+            mime_type: MIME type of the audio (e.g., "audio/wav", "audio/mp4")
+
+        Returns:
+            Transcribed text or None on error
+        """
+        try:
+            # Upload the audio file using the Files API
+            upload_response = await self.client.aio.files.upload(
+                file=audio_data,
+                mime_type=mime_type,
+            )
+            
+            # Generate content with the uploaded file
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=[
+                    upload_response,
+                    "Transcribe this audio to text. Provide only the transcription without any additional commentary."
+                ],
+            )
+            
+            # Delete the uploaded file to save storage
+            try:
+                await self.client.aio.files.delete(name=upload_response.name)
+            except Exception as e:
+                print(f"Warning: Failed to delete uploaded audio file: {e}")
+            
+            return response.text.strip()
+        except Exception as e:
+            print(f"Error transcribing audio: {e}")
+            return None
+
     async def process_progress_report(
         self,
         user_message: str,

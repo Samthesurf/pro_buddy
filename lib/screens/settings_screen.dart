@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/auth_cubit.dart';
+import '../bloc/chat_cubit.dart';
+import '../bloc/progress_score_cubit.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
@@ -996,6 +998,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             FilledButton(
               onPressed: () {
                 Navigator.of(context).pop();
+                // Reset cached data cubits to prevent data leakage between accounts
+                context.read<ChatCubit>().reset();
+                context.read<ProgressScoreCubit>().reset();
                 context.read<AuthCubit>().signOut();
               },
               style: FilledButton.styleFrom(

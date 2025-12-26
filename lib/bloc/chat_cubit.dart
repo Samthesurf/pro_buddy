@@ -19,12 +19,12 @@ class ChatState {
   });
 
   factory ChatState.initial() => const ChatState(
-        messages: [],
-        isLoading: false,
-        showInitialPrompt: true,
-        hasLoadedHistory: false,
-        errorMessage: null,
-      );
+    messages: [],
+    isLoading: false,
+    showInitialPrompt: true,
+    hasLoadedHistory: false,
+    errorMessage: null,
+  );
 
   ChatState copyWith({
     List<ChatMessage>? messages,
@@ -45,8 +45,8 @@ class ChatState {
 
 class ChatCubit extends Cubit<ChatState> {
   ChatCubit({ApiService? apiService})
-      : _apiService = apiService ?? ApiService.instance,
-        super(ChatState.initial());
+    : _apiService = apiService ?? ApiService.instance,
+      super(ChatState.initial());
 
   final ApiService _apiService;
 
@@ -124,9 +124,81 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
+  Future<void> sendVoiceMessage({
+    required String audioBase64,
+    required String audioMimeType,
+  }) async {
+    if (state.isLoading) return;
+
+    // Add a placeholder message for the voice input
+    final placeholderMessage = ChatMessage.user(
+      '🎤 Voice message (transcribing...)',
+    );
+    final updatedMessages = [...state.messages, placeholderMessage];
+
+    emit(
+      state.copyWith(
+        messages: updatedMessages,
+        isLoading: true,
+        showInitialPrompt: false,
+        errorMessage: null,
+      ),
+    );
+
+    try {
+      final response = await _apiService.reportProgress(
+        message:
+            'Voice message', // Placeholder, will be replaced by transcription
+        isVoice: true,
+        audioBase64: audioBase64,
+        audioMimeType: audioMimeType,
+      );
+      final progressResponse = ProgressReportResponse.fromJson(response);
+
+      final assistantMessage = ChatMessage.assistant(
+        progressResponse.message,
+        encouragementType: progressResponse.encouragementType,
+        detectedTopics: progressResponse.detectedTopics,
+      );
+
+      // Replace placeholder with actual transcribed message
+      // The backend returns the AI response, but we want to show what the user said
+      // For now, we'll just show the assistant's response and remove the placeholder
+      final finalMessages = List<ChatMessage>.from(state.messages);
+      finalMessages.removeLast(); // Remove placeholder
+      finalMessages.add(assistantMessage);
+
+      emit(state.copyWith(messages: finalMessages, isLoading: false));
+    } catch (e) {
+      print('Error sending voice message: $e');
+      final finalMessages = List<ChatMessage>.from(updatedMessages);
+      finalMessages.removeLast(); // Remove placeholder
+      finalMessages.add(
+        ChatMessage.assistant(
+          "I couldn't process your voice message. Please try typing instead.",
+          encouragementType: EncouragementType.support,
+        ),
+      );
+
+      emit(
+        state.copyWith(
+          messages: finalMessages,
+          isLoading: false,
+          errorMessage: 'Failed to process voice message.',
+        ),
+      );
+    }
+  }
+
   void clearError() {
     if (state.errorMessage != null) {
       emit(state.copyWith(errorMessage: null));
     }
+  }
+
+  /// Reset all chat state. Call this when the user signs out
+  /// to prevent data from one user showing for another.
+  void reset() {
+    emit(ChatState.initial());
   }
 }

@@ -71,6 +71,7 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _didNavigate = false;
+  AuthStatus? _previousStatus;
 
   @override
   void initState() {
@@ -82,7 +83,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 
   Future<void> _checkAuth(AuthState state) async {
-    if (_didNavigate || !mounted) return;
+    if (!mounted) return;
+
+    // If status changed from authenticated to unauthenticated, user signed out
+    // Reset navigation flag and navigate to sign-in
+    if (_previousStatus == AuthStatus.authenticated &&
+        state.status == AuthStatus.unauthenticated) {
+      _didNavigate = false; // Reset so we can navigate again
+    }
+
+    _previousStatus = state.status;
+
+    if (_didNavigate) return;
 
     if (state.status == AuthStatus.authenticated) {
       // Logged-in users always go straight to the dashboard.
