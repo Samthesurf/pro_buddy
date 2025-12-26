@@ -22,7 +22,7 @@ class OnboardingQuizScreen extends StatefulWidget {
 
 class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
   int _currentQuestion = 0;
-  
+
   // Quiz answers
   double _distractionHours = 2.0;
   double _focusDuration = 30.0; // minutes
@@ -57,13 +57,13 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
     if (!mounted) return;
 
     final authStatus = context.read<AuthCubit>().state.status;
-    final targetRoute =
-        authStatus == AuthStatus.authenticated ? AppRoutes.dashboard : AppRoutes.signIn;
+    final targetRoute = authStatus == AuthStatus.authenticated
+        ? AppRoutes.dashboard
+        : AppRoutes.signIn;
 
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      targetRoute,
-      (route) => false,
-    );
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(targetRoute, (route) => false);
   }
 
   void _finishQuiz() {
@@ -74,10 +74,9 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
       productiveTime: _productiveTime,
       checkInFrequency: _checkInFrequency,
     );
-    Navigator.of(context).pushNamed(
-      AppRoutes.onboardingChallenges,
-      arguments: data,
-    );
+    Navigator.of(
+      context,
+    ).pushNamed(AppRoutes.onboardingChallenges, arguments: data);
   }
 
   String _formatHours(double hours) {
@@ -110,10 +109,7 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1A4CFF),
-              Color(0xFF0D2B99),
-            ],
+            colors: [Color(0xFF1A4CFF), Color(0xFF0D2B99)],
           ),
         ),
         child: SafeArea(
@@ -122,12 +118,12 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 12),
-                
+
                 // Header with back button and progress
                 _buildHeader(),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Question content
                 Expanded(
                   child: AnimatedSwitcher(
@@ -147,22 +143,21 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
                     child: _buildQuestion(_currentQuestion),
                   ),
                 ),
-                
+
                 // Next button
                 OnboardingButton(
-                  label: _currentQuestion < _totalQuestions - 1 ? 'Next' : 'Continue',
+                  label: _currentQuestion < _totalQuestions - 1
+                      ? 'Next'
+                      : 'Continue',
                   onPressed: _nextQuestion,
                   isDark: false,
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Skip button
-                OnboardingTextButton(
-                  label: 'Skip Quiz',
-                  onPressed: _skipQuiz,
-                ),
-                
+                OnboardingTextButton(label: 'Skip Quiz', onPressed: _skipQuiz),
+
                 const SizedBox(height: 24),
               ],
             ),
@@ -180,25 +175,21 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
           onTap: _previousQuestion,
           child: Container(
             padding: const EdgeInsets.all(8),
-            child: const Icon(
-              Icons.arrow_back,
-              color: Colors.white,
-              size: 24,
-            ),
+            child: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
           ),
         ),
-        
+
         const SizedBox(width: 12),
-        
+
         // Progress bar
         Expanded(
           child: OnboardingProgressBar(
             progress: (_currentQuestion + 1) / _totalQuestions,
           ),
         ),
-        
+
         const SizedBox(width: 12),
-        
+
         TextButton(
           onPressed: _skipOnboarding,
           style: TextButton.styleFrom(
@@ -218,12 +209,12 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
           questionNumber: 1,
           question: 'How many hours a day do you lose to distracting apps?',
           value: _distractionHours,
-          maxValue: 8,
+          maxValue: 18,
           label: _formatHours(_distractionHours),
           onChanged: (v) => setState(() => _distractionHours = v),
           min: 0,
-          max: 8,
-          divisions: 16,
+          max: 18,
+          divisions: 36,
         );
       case 1:
         return _buildGaugeQuestion(
@@ -231,15 +222,15 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
           questionNumber: 2,
           question: 'How long can you focus before checking your phone?',
           value: _focusDuration,
-          maxValue: 120,
+          maxValue: 480,
           label: _formatMinutes(_focusDuration),
           onChanged: (v) => setState(() => _focusDuration = v),
           min: 5,
-          max: 120,
-          divisions: 23,
+          max: 480,
+          divisions: 95,
         );
       case 2:
-        return _buildGaugeQuestion(
+        return _buildGaugeQuestionWithDescription(
           key: const ValueKey('q2'),
           questionNumber: 3,
           question: 'How clear are you on your main goal right now?',
@@ -247,9 +238,14 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
           maxValue: 10,
           label: '$_goalClarity/10',
           onChanged: (v) => setState(() => _goalClarity = v.round()),
-          min: 1,
+          min: 0,
           max: 10,
-          divisions: 9,
+          divisions: 10,
+          descriptions: const [
+            '0/10 - Don\'t have any goals',
+            '5/10 - Have goals but not very specific on the details',
+            '10/10 - Have goals with specific metrics and numbers to classify as completed',
+          ],
         );
       case 3:
         return _buildChipQuestion(
@@ -310,9 +306,9 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
           ),
           textAlign: TextAlign.center,
         ),
-        
+
         const Spacer(),
-        
+
         // Gauge
         CircularGaugeWidget(
           value: value,
@@ -320,9 +316,9 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
           label: label,
           size: 240,
         ),
-        
+
         const Spacer(),
-        
+
         // Slider
         SliderTheme(
           data: SliderThemeData(
@@ -341,7 +337,108 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
             onChanged: onChanged,
           ),
         ),
-        
+
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildGaugeQuestionWithDescription({
+    required Key key,
+    required int questionNumber,
+    required String question,
+    required double value,
+    required double maxValue,
+    required String label,
+    required ValueChanged<double> onChanged,
+    required double min,
+    required double max,
+    required int divisions,
+    required List<String> descriptions,
+  }) {
+    return Column(
+      key: key,
+      children: [
+        // Question header
+        Text(
+          'Question #$questionNumber',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 24,
+            fontWeight: FontWeight.w500,
+            color: Colors.white,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          question,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            height: 1.4,
+          ),
+          textAlign: TextAlign.center,
+        ),
+
+        const Spacer(),
+
+        // Gauge
+        CircularGaugeWidget(
+          value: value,
+          maxValue: maxValue,
+          label: label,
+          size: 200,
+        ),
+
+        const SizedBox(height: 16),
+
+        // Scale descriptions
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: descriptions.map((desc) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  desc,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.85),
+                    height: 1.3,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+
+        const Spacer(),
+
+        // Slider
+        SliderTheme(
+          data: SliderThemeData(
+            activeTrackColor: Colors.white,
+            inactiveTrackColor: Colors.white.withValues(alpha: 0.3),
+            thumbColor: Colors.white,
+            overlayColor: Colors.white.withValues(alpha: 0.2),
+            trackHeight: 4,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
+          ),
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: onChanged,
+          ),
+        ),
+
         const SizedBox(height: 24),
       ],
     );
@@ -379,9 +476,9 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
           ),
           textAlign: TextAlign.center,
         ),
-        
+
         const SizedBox(height: 48),
-        
+
         // Options
         Wrap(
           spacing: 12,
@@ -393,12 +490,19 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
               onTap: () => onSelected(option),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.15),
+                  color: isSelected
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(
-                    color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.3),
+                    color: isSelected
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.3),
                     width: 2,
                   ),
                 ),
@@ -414,7 +518,7 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
             );
           }).toList(),
         ),
-        
+
         const Spacer(),
       ],
     );

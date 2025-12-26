@@ -25,10 +25,11 @@ class OnboardingProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = backgroundColor ?? Colors.white.withValues(alpha: 0.2);
-    final colors = gradientColors ??
-        const [
-          Color(0xFF00E676), // Bright mint/lime green
-          Color(0xFF1B5E20), // Deep forest green
+    final colors =
+        gradientColors ??
+        [
+          Colors.white.withValues(alpha: 0.6), // White with higher transparency
+          Colors.white, // Regular white
         ];
 
     return Container(

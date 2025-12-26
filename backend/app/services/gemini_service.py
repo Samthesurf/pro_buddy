@@ -598,7 +598,6 @@ Return ONLY JSON with this schema:
     "why": "string|null",
     "motivators": ["string", "..."],
     "stakes": "string|null",
-    "importance_1_to_5": 1-5|null,
     "style": "gentle|direct|playful|mixed",
     "preferred_name_for_user": "string|null",
     "preferred_name_for_assistant": "string|null",
@@ -611,7 +610,8 @@ Return ONLY JSON with this schema:
 Rules:
 - Keep existing profile fields unless the user clearly updates them.
 - Never invent facts. If unknown, set null or empty list.
-- If you have enough info to personalize notifications (identity + primary_goal + importance + at least one motivator or stakes + style), set done=true and ask a final "confirm" question inside assistant_message.
+- Since we ask for the single most important goal, importance is implied to be maximum.
+- If you have enough info to personalize notifications (identity + primary_goal + at least one motivator or stakes + style), set done=true and ask a final "confirm" question inside assistant_message.
 """
 
         try:
