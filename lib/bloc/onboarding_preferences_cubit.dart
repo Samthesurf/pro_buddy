@@ -105,5 +105,3 @@ class OnboardingPreferencesCubit extends Cubit<OnboardingPreferencesState> {
     }
   }
 }
-
-

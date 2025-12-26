@@ -19,10 +19,29 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
 
+  // Search functionality
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  List<AppInfo> get _filteredApps {
+    if (_searchQuery.isEmpty) {
+      return _installedApps;
+    }
+    return _installedApps.where((app) {
+      return app.name.toLowerCase().contains(_searchQuery.toLowerCase());
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
     _fetchApps();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchApps() async {
@@ -32,7 +51,7 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
         excludeNonLaunchableApps: true,
         withIcon: true,
       );
-      
+
       // Filter out our own app if needed
       // apps.removeWhere((app) => app.packageName == 'com.example.pro_buddy');
 
@@ -119,12 +138,14 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
       // 1. Prepare selected apps data
       final selectedAppsData = _installedApps
           .where((app) => _selectedPackageNames.contains(app.packageName))
-          .map((app) => {
-                'package_name': app.packageName,
-                'app_name': app.name,
-                'reason': _appReasons[app.packageName] ?? '',
-                'importance_rating': 5, // Default for now
-              })
+          .map(
+            (app) => {
+              'package_name': app.packageName,
+              'app_name': app.name,
+              'reason': _appReasons[app.packageName] ?? '',
+              'importance_rating': 5, // Default for now
+            },
+          )
           .toList();
 
       // 2. Save apps
@@ -136,19 +157,19 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
       if (!mounted) return;
 
       // 4. Navigate to Dashboard
-      // The AuthWrapper should pick up the change on next app launch, 
+      // The AuthWrapper should pick up the change on next app launch,
       // but for immediate transition we push replacement.
       // Ideally update AuthCubit state here too.
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.dashboard,
-        (route) => false,
-      );
-      
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.dashboard, (route) => false);
     } catch (e) {
       debugPrint('Error completing onboarding: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to complete setup. Please try again.')),
+        const SnackBar(
+          content: Text('Failed to complete setup. Please try again.'),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -167,16 +188,15 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
 
     if (!mounted) return;
     setState(() => _isSaving = false);
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.dashboard,
-      (route) => false,
-    );
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(AppRoutes.dashboard, (route) => false);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Select Helper Apps'),
@@ -209,16 +229,111 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
               ),
             ),
           ),
+          // Search bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search apps...',
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(
+                          Icons.clear_rounded,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // App count indicator
+          if (!_isLoading)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  Text(
+                    _searchQuery.isNotEmpty
+                        ? '${_filteredApps.length} of ${_installedApps.length} apps'
+                        : '${_installedApps.length} apps',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
+                : _filteredApps.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: 64,
+                          color: theme.colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No apps found for "$_searchQuery"',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
                 : ListView.builder(
-                    itemCount: _installedApps.length,
+                    itemCount: _filteredApps.length,
                     padding: const EdgeInsets.only(bottom: 80), // Space for FAB
                     itemBuilder: (context, index) {
-                      final app = _installedApps[index];
-                      final isSelected = _selectedPackageNames.contains(app.packageName);
-                      
+                      final app = _filteredApps[index];
+                      final isSelected = _selectedPackageNames.contains(
+                        app.packageName,
+                      );
+
                       return ListTile(
                         leading: app.icon != null
                             ? Image.memory(app.icon!, width: 40, height: 40)
@@ -255,8 +370,11 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
                   child: Ink(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: _isSaving 
-                            ? [AppColors.primary.withValues(alpha: 0.6), AppColors.primaryLight.withValues(alpha: 0.6)]
+                        colors: _isSaving
+                            ? [
+                                AppColors.primary.withValues(alpha: 0.6),
+                                AppColors.primaryLight.withValues(alpha: 0.6),
+                              ]
                             : [AppColors.primary, AppColors.primaryLight],
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
@@ -271,7 +389,10 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
                       ],
                     ),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -285,7 +406,11 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
                               ),
                             )
                           else
-                            const Icon(Icons.check_rounded, color: Colors.white, size: 22),
+                            const Icon(
+                              Icons.check_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
                           const SizedBox(width: 12),
                           Text(
                             _isSaving ? 'Setting up...' : 'Complete Setup',
