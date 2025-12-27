@@ -24,12 +24,13 @@ from ..services.usage_store_service import usage_store_service
 router = APIRouter()
 
 
-# Simple in-memory storage (replace with database in production)
-_goals_db: dict = {}  # user_id -> list of Goal (actual primary goals from Goal Discovery)
-_app_selections_db: dict = {}
-_notification_profile_db: dict = {}  # user_id -> latest profile dict (cache)
-_goal_discovery_sessions: dict = {}  # session_id -> session state (in-memory)
-_onboarding_preferences_db: dict = {}  # user_id -> onboarding preferences (challenges, habits, etc.)
+# In-memory caches - D1 is the source of truth, these improve performance
+# Data is loaded from D1 on demand and written through on changes
+_goals_cache: dict = {}  # user_id -> list of Goal (cached from D1)
+_app_selections_cache: dict = {}  # user_id -> list of AppSelection (cached from D1)
+_notification_profile_cache: dict = {}  # user_id -> latest profile dict (cache)
+_goal_discovery_sessions: dict = {}  # session_id -> session state (in-memory only, short-lived)
+_onboarding_preferences_cache: dict = {}  # user_id -> onboarding preferences (cached from D1)
 
 # Goal discovery guardrails (kept intentionally small: this is onboarding UX).
 _GOAL_DISCOVERY_MAX_USER_TURNS = 8
@@ -381,21 +382,93 @@ async def _bg_store_goal(vectorize, user_id: str, goal_id: str, content: str, re
         print(f"Warning: Failed to store goal in Vectorize (background): {e}")
 
 
-def reset_user_onboarding_data(uid: str):
-    """Clear in-memory onboarding data for a user."""
-    if uid in _goals_db:
-        del _goals_db[uid]
-    if uid in _app_selections_db:
-        del _app_selections_db[uid]
-    if uid in _notification_profile_db:
-        del _notification_profile_db[uid]
-    if uid in _onboarding_preferences_db:
-        del _onboarding_preferences_db[uid]
+async def reset_user_onboarding_data(uid: str):
+    """Clear cached onboarding data for a user. D1 data is deleted via usage_store_service.delete_user_data."""
+    # Clear in-memory caches
+    if uid in _goals_cache:
+        del _goals_cache[uid]
+    if uid in _app_selections_cache:
+        del _app_selections_cache[uid]
+    if uid in _notification_profile_cache:
+        del _notification_profile_cache[uid]
+    if uid in _onboarding_preferences_cache:
+        del _onboarding_preferences_cache[uid]
     
     # Clear goal discovery sessions for this user
     sessions_to_remove = [k for k, v in _goal_discovery_sessions.items() if v.get("user_id") == uid]
     for k in sessions_to_remove:
         del _goal_discovery_sessions[k]
+
+
+async def _hydrate_goals_from_d1(uid: str) -> list:
+    """Load goals from D1 into memory cache."""
+    if not usage_store_service.configured:
+        return []
+    
+    try:
+        goals_data = await usage_store_service.get_goals(user_id=uid)
+        if goals_data:
+            goals = []
+            for g in goals_data:
+                goal = Goal(
+                    id=g["id"],
+                    user_id=g["user_id"],
+                    content=g["content"],
+                    reason=g.get("reason"),
+                    timeline=g.get("timeline"),
+                    created_at=datetime.fromisoformat(g["created_at"].replace("Z", "+00:00")),
+                )
+                goals.append(goal)
+            _goals_cache[uid] = goals
+            return goals
+    except Exception as e:
+        print(f"Warning: Failed to hydrate goals from D1: {e}")
+    
+    return []
+
+
+async def _hydrate_app_selections_from_d1(uid: str) -> list:
+    """Load app selections from D1 into memory cache."""
+    if not usage_store_service.configured:
+        return []
+    
+    try:
+        selections_data = await usage_store_service.get_app_selections(user_id=uid)
+        if selections_data:
+            selections = []
+            for s in selections_data:
+                selection = AppSelection(
+                    id=s["id"],
+                    user_id=s["user_id"],
+                    package_name=s["package_name"],
+                    app_name=s["app_name"],
+                    reason=s.get("reason"),
+                    importance_rating=s.get("importance_rating", 3),
+                    created_at=datetime.fromisoformat(s["created_at"].replace("Z", "+00:00")),
+                )
+                selections.append(selection)
+            _app_selections_cache[uid] = selections
+            return selections
+    except Exception as e:
+        print(f"Warning: Failed to hydrate app selections from D1: {e}")
+    
+    return []
+
+
+async def _hydrate_notification_profile_from_d1(uid: str) -> dict:
+    """Load notification profile from D1 into memory cache."""
+    if not usage_store_service.configured:
+        return {}
+    
+    try:
+        profile_data = await usage_store_service.get_notification_profile(user_id=uid)
+        if profile_data:
+            _notification_profile_cache[uid] = profile_data
+            return profile_data
+    except Exception as e:
+        print(f"Warning: Failed to hydrate notification profile from D1: {e}")
+    
+    return {}
 
 
 @router.post("/goals", response_model=GoalsResponse)
@@ -408,8 +481,7 @@ async def save_goals(
     """
     Save user's goals during onboarding.
 
-    The goals will be stored in Cloudflare Vectorize for semantic retrieval
-    during app usage monitoring.
+    The goals will be stored in D1 for persistence and Cloudflare Vectorize for semantic retrieval.
     """
     uid = current_user["uid"]
 
@@ -423,10 +495,26 @@ async def save_goals(
         created_at=datetime.utcnow(),
     )
 
-    # Store in memory
-    if uid not in _goals_db:
-        _goals_db[uid] = []
-    _goals_db[uid].append(goal)
+    # Store in cache
+    if uid not in _goals_cache:
+        # Hydrate from D1 first if cache is empty
+        await _hydrate_goals_from_d1(uid)
+    if uid not in _goals_cache:
+        _goals_cache[uid] = []
+    _goals_cache[uid].append(goal)
+
+    # Persist to D1
+    if usage_store_service.configured:
+        try:
+            await usage_store_service.store_goal(
+                goal_id=goal.id,
+                user_id=uid,
+                content=goal.content,
+                reason=goal.reason,
+                timeline=goal.timeline,
+            )
+        except Exception as e:
+            print(f"Warning: Failed to store goal in D1: {e}")
 
     # Store in Cloudflare Vectorize (background task)
     if req and hasattr(req.app.state, "vectorize"):
@@ -445,13 +533,13 @@ async def save_goals(
     if req and hasattr(req.app.state, "gemini"):
         try:
             gemini = req.app.state.gemini
-            goals_data = [{"content": g.content, "reason": g.reason} for g in _goals_db[uid]]
+            goals_data = [{"content": g.content, "reason": g.reason} for g in _goals_cache[uid]]
             summary = await gemini.generate_goals_summary(goals_data)
         except Exception as e:
             print(f"Warning: Failed to generate summary with Gemini: {e}")
 
     return GoalsResponse(
-        goals=_goals_db[uid],
+        goals=_goals_cache[uid],
         summary=summary,
     )
 
@@ -462,8 +550,12 @@ async def get_goals(
 ):
     """Get user's saved goals."""
     uid = current_user["uid"]
-    goals = _goals_db.get(uid, [])
-
+    
+    # Check cache first, then hydrate from D1
+    if uid not in _goals_cache:
+        await _hydrate_goals_from_d1(uid)
+    
+    goals = _goals_cache.get(uid, [])
     return GoalsResponse(goals=goals)
 
 
@@ -506,6 +598,8 @@ async def save_app_selections(
     uid = current_user["uid"]
 
     selections = []
+    d1_payload = []
+    
     for app_data in request.apps:
         selection = AppSelection(
             id=str(uuid4()),
@@ -517,6 +611,16 @@ async def save_app_selections(
             created_at=datetime.utcnow(),
         )
         selections.append(selection)
+        
+        # Prepare D1 payload for bulk insert
+        d1_payload.append({
+            "id": selection.id,
+            "user_id": uid,
+            "package_name": selection.package_name,
+            "app_name": selection.app_name,
+            "reason": selection.reason,
+            "importance_rating": selection.importance_rating,
+        })
 
         # Store in Cloudflare Vectorize (background task)
         if req and hasattr(req.app.state, "vectorize"):
@@ -532,14 +636,21 @@ async def save_app_selections(
                 selection.importance_rating,
             )
 
-    # Store in memory
-    if uid not in _app_selections_db:
-        _app_selections_db[uid] = []
-    _app_selections_db[uid].extend(selections)
+    # Persist to D1 (bulk)
+    if usage_store_service.configured and d1_payload:
+        try:
+            await usage_store_service.store_app_selections_bulk(selections=d1_payload)
+        except Exception as e:
+            print(f"Warning: Failed to store app selections in D1: {e}")
+
+    # Store in cache
+    if uid not in _app_selections_cache:
+        _app_selections_cache[uid] = []
+    _app_selections_cache[uid].extend(selections)
 
     return AppSelectionsResponse(
-        selections=_app_selections_db[uid],
-        count=len(_app_selections_db[uid]),
+        selections=_app_selections_cache[uid],
+        count=len(_app_selections_cache[uid]),
     )
 
 
@@ -549,7 +660,12 @@ async def get_app_selections(
 ):
     """Get user's app selections."""
     uid = current_user["uid"]
-    selections = _app_selections_db.get(uid, [])
+    
+    # Check cache first, then hydrate from D1
+    if uid not in _app_selections_cache:
+        await _hydrate_app_selections_from_d1(uid)
+    
+    selections = _app_selections_cache.get(uid, [])
 
     return AppSelectionsResponse(
         selections=selections,
@@ -581,7 +697,7 @@ async def save_onboarding_preferences(
     }
     
     # Store in memory cache
-    _onboarding_preferences_db[uid] = prefs
+    _onboarding_preferences_cache[uid] = prefs
     
     # Persist to D1 for long-term storage
     if usage_store_service.configured:
@@ -610,7 +726,7 @@ async def get_onboarding_preferences(
     uid = current_user["uid"]
     
     # Try memory cache first
-    prefs = _onboarding_preferences_db.get(uid)
+    prefs = _onboarding_preferences_cache.get(uid)
     
     # If not in memory, try D1
     if not prefs and usage_store_service.configured:
@@ -627,7 +743,7 @@ async def get_onboarding_preferences(
                     "check_in_frequency": stored_prefs.get("check_in_frequency", "Daily"),
                 }
                 # Cache in memory
-                _onboarding_preferences_db[uid] = prefs
+                _onboarding_preferences_cache[uid] = prefs
         except Exception as e:
             print(f"Warning: Failed to get onboarding preferences from D1: {e}")
     
@@ -652,7 +768,12 @@ async def update_goal(
 ):
     """Update an existing goal."""
     uid = current_user["uid"]
-    goals = _goals_db.get(uid, [])
+    
+    # Ensure cache is hydrated
+    if uid not in _goals_cache:
+        await _hydrate_goals_from_d1(uid)
+    
+    goals = _goals_cache.get(uid, [])
     
     for goal in goals:
         if goal.id == goal_id:
@@ -662,6 +783,19 @@ async def update_goal(
                 goal.reason = request.reason
             if request.timeline is not None:
                 goal.timeline = request.timeline
+            
+            # Persist to D1
+            if usage_store_service.configured:
+                try:
+                    await usage_store_service.store_goal(
+                        goal_id=goal.id,
+                        user_id=uid,
+                        content=goal.content,
+                        reason=goal.reason,
+                        timeline=goal.timeline,
+                    )
+                except Exception as e:
+                    print(f"Warning: Failed to update goal in D1: {e}")
             
             return GoalsResponse(goals=goals)
     
@@ -675,11 +809,24 @@ async def delete_goal(
 ):
     """Delete a goal."""
     uid = current_user["uid"]
-    goals = _goals_db.get(uid, [])
+    
+    # Ensure cache is hydrated
+    if uid not in _goals_cache:
+        await _hydrate_goals_from_d1(uid)
+    
+    goals = _goals_cache.get(uid, [])
     
     for i, goal in enumerate(goals):
         if goal.id == goal_id:
             goals.pop(i)
+            
+            # Delete from D1
+            if usage_store_service.configured:
+                try:
+                    await usage_store_service.delete_goal(goal_id=goal_id, user_id=uid)
+                except Exception as e:
+                    print(f"Warning: Failed to delete goal from D1: {e}")
+            
             return {"success": True, "message": "Goal deleted"}
     
     raise HTTPException(status_code=404, detail="Goal not found")
@@ -698,10 +845,18 @@ async def complete_onboarding(
     """
     uid = current_user["uid"]
 
+    # Hydrate caches from D1 if needed
+    if uid not in _goals_cache:
+        await _hydrate_goals_from_d1(uid)
+    if uid not in _app_selections_cache:
+        await _hydrate_app_selections_from_d1(uid)
+    if uid not in _notification_profile_cache:
+        await _hydrate_notification_profile_from_d1(uid)
+
     # Get goals, apps, and profile
-    goals = _goals_db.get(uid, [])
-    apps = _app_selections_db.get(uid, [])
-    profile = _notification_profile_db.get(uid, {})
+    goals = _goals_cache.get(uid, [])
+    apps = _app_selections_cache.get(uid, [])
+    profile = _notification_profile_cache.get(uid, {})
 
     # Check if we have a primary goal from Goal Discovery (preferred)
     # or from direct goal input
@@ -720,8 +875,8 @@ async def complete_onboarding(
         goals_data = [{"content": g.content, "reason": g.reason} for g in goals]
         summary = await gemini.generate_goals_summary(goals_data)
 
-    # Mark user as onboarded
-    update_onboarding_status(uid, True)
+    # Mark user as onboarded (async, persists to D1)
+    await update_onboarding_status(uid, True)
 
     return OnboardingCompleteResponse(
         success=True,
@@ -754,9 +909,9 @@ async def start_goal_discovery(
 
     if body.reset:
         existing_profile = {}
-        _notification_profile_db[uid] = {}
+        _notification_profile_cache[uid] = {}
     elif not existing_profile:
-        existing_profile = _notification_profile_db.get(uid) or {}
+        existing_profile = _notification_profile_cache.get(uid) or {}
 
     # NOTE: We intentionally do NOT seed primary_goal from goals_db here.
     # The goals in goals_db from the new onboarding flow are routines/habits,
@@ -794,7 +949,7 @@ async def start_goal_discovery(
     }
 
     # Cache locally and store assistant message for RAG/history
-    _notification_profile_db[uid] = profile_dict
+    _notification_profile_cache[uid] = profile_dict
 
     if vectorize:
         await vectorize.store_goal_discovery_message(
@@ -840,7 +995,7 @@ async def goal_discovery_message(
     if vectorize:
         existing_profile = await vectorize.get_notification_profile(uid)
     if not existing_profile:
-        existing_profile = _notification_profile_db.get(uid) or {}
+        existing_profile = _notification_profile_cache.get(uid) or {}
 
     history = []
     if vectorize:
@@ -901,7 +1056,7 @@ async def goal_discovery_message(
 
         # Return done=true with whatever profile we currently have.
         updated_profile = dict(existing_profile or {})
-        _notification_profile_db[uid] = updated_profile or {}
+        _notification_profile_cache[uid] = updated_profile or {}
 
         profile = None
         if updated_profile:
@@ -979,7 +1134,7 @@ async def goal_discovery_message(
         updated_profile = dict(updated_profile)
         updated_profile["updated_at"] = datetime.utcnow()
 
-    _notification_profile_db[uid] = updated_profile or {}
+    _notification_profile_cache[uid] = updated_profile or {}
 
     # Persist profile into Vectorize for retrieval during notifications
     if vectorize and updated_profile:
@@ -988,6 +1143,18 @@ async def goal_discovery_message(
         if isinstance(to_store.get("updated_at"), datetime):
             to_store["updated_at"] = to_store["updated_at"].isoformat()
         await vectorize.store_notification_profile(uid, to_store)
+    
+    # Also persist to D1 for durability
+    if usage_store_service.configured and updated_profile:
+        try:
+            to_store_d1 = dict(updated_profile)
+            if isinstance(to_store_d1.get("updated_at"), datetime):
+                to_store_d1["updated_at"] = to_store_d1["updated_at"].isoformat()
+            await usage_store_service.store_notification_profile(
+                user_id=uid, profile_data=to_store_d1
+            )
+        except Exception as e:
+            print(f"Warning: Failed to store notification profile in D1: {e}")
 
     # Determine whether we are done (deterministic guardrails).
     hard_stop = int(session.get("turns", 0) or 0) >= _GOAL_DISCOVERY_MAX_USER_TURNS
@@ -1059,13 +1226,28 @@ async def get_notification_profile(
     current_user: dict = Depends(get_current_user),
     req: Request = None,
 ):
-    """Fetch the user's latest stored notification profile (from Vectorize if available)."""
+    """Fetch the user's latest stored notification profile (from Vectorize/D1 if available)."""
     uid = current_user["uid"]
 
     vectorize = req.app.state.vectorize if req and hasattr(req.app.state, "vectorize") else None
     profile = None
+    
+    # Try Vectorize first (optimized for semantic search)
     if vectorize:
         profile = await vectorize.get_notification_profile(uid)
+    
+    # Then try cache
     if not profile:
-        profile = _notification_profile_db.get(uid)
+        profile = _notification_profile_cache.get(uid)
+    
+    # Finally try D1 (persistent storage)
+    if not profile and usage_store_service.configured:
+        try:
+            profile = await usage_store_service.get_notification_profile(user_id=uid)
+            if profile:
+                _notification_profile_cache[uid] = profile
+        except Exception as e:
+            print(f"Warning: Failed to get notification profile from D1: {e}")
+    
     return {"profile": profile or None}
+

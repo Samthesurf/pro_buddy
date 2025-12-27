@@ -384,8 +384,308 @@ class UsageStoreService:
             )
             resp.raise_for_status()
 
+    # ==================== Users (Persistent Storage) ====================
+
+    async def upsert_user(
+        self,
+        *,
+        user_id: str,
+        email: str,
+        display_name: Optional[str] = None,
+        photo_url: Optional[str] = None,
+        onboarding_complete: bool = False,
+    ) -> None:
+        """Create or update a user in D1."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {
+            "id": user_id,
+            "email": email,
+            "display_name": display_name,
+            "photo_url": photo_url,
+            "onboarding_complete": onboarding_complete,
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/users"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    async def get_user(self, *, user_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch a user from D1."""
+        if not self.configured:
+            return None
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                self._url("/v1/users"),
+                headers=self._headers(),
+                params={"user_id": user_id},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("item")
+
+    async def update_onboarding_status(
+        self, *, user_id: str, onboarding_complete: bool
+    ) -> None:
+        """Update just the onboarding status for a user."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {
+            "user_id": user_id,
+            "onboarding_complete": onboarding_complete,
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/users/onboarding-status"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    # ==================== Goals (Persistent Storage) ====================
+
+    async def store_goal(
+        self,
+        *,
+        goal_id: str,
+        user_id: str,
+        content: str,
+        reason: Optional[str] = None,
+        timeline: Optional[str] = None,
+    ) -> None:
+        """Store a goal in D1."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {
+            "id": goal_id,
+            "user_id": user_id,
+            "content": content,
+            "reason": reason,
+            "timeline": timeline,
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/goals"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    async def get_goals(self, *, user_id: str) -> List[Dict[str, Any]]:
+        """Fetch all goals for a user from D1."""
+        if not self.configured:
+            return []
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                self._url("/v1/goals"),
+                headers=self._headers(),
+                params={"user_id": user_id},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("items") or []
+
+    async def delete_goal(self, *, goal_id: str, user_id: str) -> None:
+        """Delete a specific goal from D1."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {"id": goal_id, "user_id": user_id}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.request(
+                "DELETE",
+                self._url("/v1/goals"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    async def delete_all_goals(self, *, user_id: str) -> None:
+        """Delete all goals for a user from D1."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {"user_id": user_id}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.request(
+                "DELETE",
+                self._url("/v1/goals/bulk"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    # ==================== App Selections (Persistent Storage) ====================
+
+    async def store_app_selection(
+        self,
+        *,
+        selection_id: str,
+        user_id: str,
+        package_name: str,
+        app_name: str,
+        reason: Optional[str] = None,
+        importance_rating: int = 3,
+    ) -> None:
+        """Store an app selection in D1."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {
+            "id": selection_id,
+            "user_id": user_id,
+            "package_name": package_name,
+            "app_name": app_name,
+            "reason": reason,
+            "importance_rating": importance_rating,
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/app-selections"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    async def store_app_selections_bulk(
+        self, *, selections: List[Dict[str, Any]]
+    ) -> None:
+        """Store multiple app selections in D1."""
+        if not self.configured or not selections:
+            return
+
+        payload = {"selections": selections}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/app-selections/bulk"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    async def get_app_selections(self, *, user_id: str) -> List[Dict[str, Any]]:
+        """Fetch all app selections for a user from D1."""
+        if not self.configured:
+            return []
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                self._url("/v1/app-selections"),
+                headers=self._headers(),
+                params={"user_id": user_id},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("items") or []
+
+    async def delete_app_selection(self, *, selection_id: str, user_id: str) -> None:
+        """Delete a specific app selection from D1."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {"id": selection_id, "user_id": user_id}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.request(
+                "DELETE",
+                self._url("/v1/app-selections"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    async def delete_all_app_selections(self, *, user_id: str) -> None:
+        """Delete all app selections for a user from D1."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {"user_id": user_id}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.request(
+                "DELETE",
+                self._url("/v1/app-selections/bulk"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    # ==================== Notification Profiles (Persistent Storage) ====================
+
+    async def store_notification_profile(
+        self, *, user_id: str, profile_data: Dict[str, Any]
+    ) -> None:
+        """Store a notification profile in D1."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {
+            "user_id": user_id,
+            "profile_data": profile_data,
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/notification-profiles"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    async def get_notification_profile(
+        self, *, user_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Fetch a notification profile from D1."""
+        if not self.configured:
+            return None
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                self._url("/v1/notification-profiles"),
+                headers=self._headers(),
+                params={"user_id": user_id},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            item = data.get("item")
+            if item:
+                return item.get("profile_data")
+            return None
+
+    async def delete_notification_profile(self, *, user_id: str) -> None:
+        """Delete a notification profile from D1."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {"user_id": user_id}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.request(
+                "DELETE",
+                self._url("/v1/notification-profiles"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
 
 usage_store_service = UsageStoreService(
     base_url=settings.usage_store_worker_url,
     token=settings.usage_store_worker_token,
 )
+

@@ -476,6 +476,413 @@ export default {
       return json({ ok: true });
     }
 
+    // ==================== Users (Persistent Storage) ====================
+
+    if (path === "/v1/users") {
+      if (request.method === "POST") {
+        // Upsert user
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+        const id = String(body.id || "");
+        const email = String(body.email || "");
+        const displayName = body.display_name ? String(body.display_name) : null;
+        const photoUrl = body.photo_url ? String(body.photo_url) : null;
+        const onboardingComplete = body.onboarding_complete ? 1 : 0;
+
+        if (!isNonEmptyString(id)) return badRequest("id_required");
+        if (!isNonEmptyString(email)) return badRequest("email_required");
+
+        const nowMs = Date.now();
+
+        const stmt = env.DB.prepare(`
+          INSERT INTO users (id, email, display_name, photo_url, onboarding_complete, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            email = excluded.email,
+            display_name = excluded.display_name,
+            photo_url = excluded.photo_url,
+            onboarding_complete = excluded.onboarding_complete,
+            updated_at = excluded.updated_at
+        `);
+
+        await stmt.bind(id, email, displayName, photoUrl, onboardingComplete, nowMs, nowMs).run();
+
+        return json({ ok: true });
+      }
+
+      if (request.method === "GET") {
+        // Get user by ID
+        const userId = url.searchParams.get("user_id") || "";
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        const res = await env.DB.prepare(
+          "SELECT * FROM users WHERE id = ?"
+        ).bind(userId).first();
+
+        if (!res) {
+          return json({ item: null });
+        }
+
+        return json({
+          item: {
+            id: res.id,
+            email: res.email,
+            display_name: res.display_name,
+            photo_url: res.photo_url,
+            onboarding_complete: Boolean(res.onboarding_complete),
+            created_at: new Date(Number(res.created_at)).toISOString(),
+            updated_at: new Date(Number(res.updated_at)).toISOString(),
+          },
+        });
+      }
+
+      return methodNotAllowed();
+    }
+
+    if (path === "/v1/users/onboarding-status") {
+      if (request.method !== "POST") return methodNotAllowed();
+
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+      const userId = String(body.user_id || "");
+      const onboardingComplete = body.onboarding_complete ? 1 : 0;
+
+      if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+      const nowMs = Date.now();
+
+      const stmt = env.DB.prepare(`
+        UPDATE users SET onboarding_complete = ?, updated_at = ? WHERE id = ?
+      `);
+
+      await stmt.bind(onboardingComplete, nowMs, userId).run();
+
+      return json({ ok: true });
+    }
+
+    // ==================== Goals (Persistent Storage) ====================
+
+    if (path === "/v1/goals") {
+      if (request.method === "POST") {
+        // Create or update goal
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+        const id = String(body.id || "");
+        const userId = String(body.user_id || "");
+        const content = String(body.content || "");
+        const reason = body.reason ? String(body.reason) : null;
+        const timeline = body.timeline ? String(body.timeline) : null;
+
+        if (!isNonEmptyString(id)) return badRequest("id_required");
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+        if (!isNonEmptyString(content)) return badRequest("content_required");
+
+        const nowMs = Date.now();
+
+        const stmt = env.DB.prepare(`
+          INSERT INTO goals (id, user_id, content, reason, timeline, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            content = excluded.content,
+            reason = excluded.reason,
+            timeline = excluded.timeline,
+            updated_at = excluded.updated_at
+        `);
+
+        await stmt.bind(id, userId, content, reason, timeline, nowMs, nowMs).run();
+
+        return json({ ok: true });
+      }
+
+      if (request.method === "GET") {
+        // Get goals for user
+        const userId = url.searchParams.get("user_id") || "";
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        const res = await env.DB.prepare(
+          "SELECT * FROM goals WHERE user_id = ? ORDER BY created_at ASC"
+        ).bind(userId).all();
+
+        const rows = (res && res.results) || [];
+
+        const items = rows.map((r) => ({
+          id: r.id,
+          user_id: r.user_id,
+          content: r.content,
+          reason: r.reason,
+          timeline: r.timeline,
+          created_at: new Date(Number(r.created_at)).toISOString(),
+          updated_at: new Date(Number(r.updated_at)).toISOString(),
+        }));
+
+        return json({ items, total: items.length });
+      }
+
+      if (request.method === "DELETE") {
+        // Delete a specific goal
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+        const id = String(body.id || "");
+        const userId = String(body.user_id || "");
+
+        if (!isNonEmptyString(id)) return badRequest("id_required");
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        await env.DB.prepare(
+          "DELETE FROM goals WHERE id = ? AND user_id = ?"
+        ).bind(id, userId).run();
+
+        return json({ ok: true });
+      }
+
+      return methodNotAllowed();
+    }
+
+    if (path === "/v1/goals/bulk") {
+      if (request.method !== "DELETE") return methodNotAllowed();
+
+      // Delete all goals for a user
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+      const userId = String(body.user_id || "");
+      if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+      await env.DB.prepare("DELETE FROM goals WHERE user_id = ?").bind(userId).run();
+
+      return json({ ok: true });
+    }
+
+    // ==================== App Selections (Persistent Storage) ====================
+
+    if (path === "/v1/app-selections") {
+      if (request.method === "POST") {
+        // Create or update app selection
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+        const id = String(body.id || "");
+        const userId = String(body.user_id || "");
+        const packageName = String(body.package_name || "");
+        const appName = String(body.app_name || "");
+        const reason = body.reason ? String(body.reason) : null;
+        const importanceRating = clampInt(Number(body.importance_rating) || 3, 1, 5);
+
+        if (!isNonEmptyString(id)) return badRequest("id_required");
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+        if (!isNonEmptyString(packageName)) return badRequest("package_name_required");
+        if (!isNonEmptyString(appName)) return badRequest("app_name_required");
+
+        const nowMs = Date.now();
+
+        const stmt = env.DB.prepare(`
+          INSERT INTO app_selections (id, user_id, package_name, app_name, reason, importance_rating, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, package_name) DO UPDATE SET
+            id = excluded.id,
+            app_name = excluded.app_name,
+            reason = excluded.reason,
+            importance_rating = excluded.importance_rating,
+            updated_at = excluded.updated_at
+        `);
+
+        await stmt.bind(id, userId, packageName, appName, reason, importanceRating, nowMs, nowMs).run();
+
+        return json({ ok: true });
+      }
+
+      if (request.method === "GET") {
+        // Get app selections for user
+        const userId = url.searchParams.get("user_id") || "";
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        const res = await env.DB.prepare(
+          "SELECT * FROM app_selections WHERE user_id = ? ORDER BY created_at ASC"
+        ).bind(userId).all();
+
+        const rows = (res && res.results) || [];
+
+        const items = rows.map((r) => ({
+          id: r.id,
+          user_id: r.user_id,
+          package_name: r.package_name,
+          app_name: r.app_name,
+          reason: r.reason,
+          importance_rating: Number(r.importance_rating),
+          created_at: new Date(Number(r.created_at)).toISOString(),
+          updated_at: new Date(Number(r.updated_at)).toISOString(),
+        }));
+
+        return json({ items, total: items.length });
+      }
+
+      if (request.method === "DELETE") {
+        // Delete a specific app selection
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+        const id = String(body.id || "");
+        const userId = String(body.user_id || "");
+
+        if (!isNonEmptyString(id)) return badRequest("id_required");
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        await env.DB.prepare(
+          "DELETE FROM app_selections WHERE id = ? AND user_id = ?"
+        ).bind(id, userId).run();
+
+        return json({ ok: true });
+      }
+
+      return methodNotAllowed();
+    }
+
+    if (path === "/v1/app-selections/bulk") {
+      if (request.method === "POST") {
+        // Bulk upsert app selections
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+        const selections = body.selections;
+        if (!Array.isArray(selections) || selections.length === 0) {
+          return badRequest("selections_required");
+        }
+
+        const nowMs = Date.now();
+        const statements = [];
+
+        for (const sel of selections.slice(0, 100)) { // Limit to 100 at a time
+          const id = String(sel.id || "");
+          const userId = String(sel.user_id || "");
+          const packageName = String(sel.package_name || "");
+          const appName = String(sel.app_name || "");
+          const reason = sel.reason ? String(sel.reason) : null;
+          const importanceRating = clampInt(Number(sel.importance_rating) || 3, 1, 5);
+
+          if (!isNonEmptyString(id) || !isNonEmptyString(userId) ||
+            !isNonEmptyString(packageName) || !isNonEmptyString(appName)) {
+            continue;
+          }
+
+          statements.push(
+            env.DB.prepare(`
+              INSERT INTO app_selections (id, user_id, package_name, app_name, reason, importance_rating, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(user_id, package_name) DO UPDATE SET
+                id = excluded.id,
+                app_name = excluded.app_name,
+                reason = excluded.reason,
+                importance_rating = excluded.importance_rating,
+                updated_at = excluded.updated_at
+            `).bind(id, userId, packageName, appName, reason, importanceRating, nowMs, nowMs)
+          );
+        }
+
+        if (statements.length > 0) {
+          await env.DB.batch(statements);
+        }
+
+        return json({ ok: true, count: statements.length });
+      }
+
+      if (request.method === "DELETE") {
+        // Delete all app selections for a user
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+        const userId = String(body.user_id || "");
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        await env.DB.prepare("DELETE FROM app_selections WHERE user_id = ?").bind(userId).run();
+
+        return json({ ok: true });
+      }
+
+      return methodNotAllowed();
+    }
+
+    // ==================== Notification Profiles (Persistent Storage) ====================
+
+    if (path === "/v1/notification-profiles") {
+      if (request.method === "POST") {
+        // Upsert notification profile
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+        const userId = String(body.user_id || "");
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        // Store the entire profile as JSON
+        const profileData = body.profile_data || {};
+        const profileJson = JSON.stringify(profileData);
+
+        const nowMs = Date.now();
+
+        const stmt = env.DB.prepare(`
+          INSERT INTO notification_profiles (user_id, profile_data, created_at, updated_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(user_id) DO UPDATE SET
+            profile_data = excluded.profile_data,
+            updated_at = excluded.updated_at
+        `);
+
+        await stmt.bind(userId, profileJson, nowMs, nowMs).run();
+
+        return json({ ok: true });
+      }
+
+      if (request.method === "GET") {
+        // Get notification profile for user
+        const userId = url.searchParams.get("user_id") || "";
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        const res = await env.DB.prepare(
+          "SELECT * FROM notification_profiles WHERE user_id = ?"
+        ).bind(userId).first();
+
+        if (!res) {
+          return json({ item: null });
+        }
+
+        let profileData = {};
+        try {
+          profileData = JSON.parse(res.profile_data || "{}");
+        } catch (e) {
+          profileData = {};
+        }
+
+        return json({
+          item: {
+            user_id: res.user_id,
+            profile_data: profileData,
+            created_at: new Date(Number(res.created_at)).toISOString(),
+            updated_at: new Date(Number(res.updated_at)).toISOString(),
+          },
+        });
+      }
+
+      if (request.method === "DELETE") {
+        // Delete notification profile
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+        const userId = String(body.user_id || "");
+        if (!isNonEmptyString(userId)) return badRequest("user_id_required");
+
+        await env.DB.prepare(
+          "DELETE FROM notification_profiles WHERE user_id = ?"
+        ).bind(userId).run();
+
+        return json({ ok: true });
+      }
+
+      return methodNotAllowed();
+    }
+
     // ==================== User Data Deletion ====================
 
     if (path === "/v1/user/data") {
@@ -487,13 +894,17 @@ export default {
       const userId = String(body.user_id || "");
       if (!isNonEmptyString(userId)) return badRequest("user_id_required");
 
-      // Delete from all tables (including onboarding_preferences)
+      // Delete from all tables (including persistent storage tables)
       // Note: app_use_cases is global, not per-user, so not deleted here
       const batch = [
         env.DB.prepare("DELETE FROM usage_feedback WHERE user_id = ?").bind(userId),
         env.DB.prepare("DELETE FROM notification_cooldowns WHERE user_id = ?").bind(userId),
         env.DB.prepare("DELETE FROM progress_scores WHERE user_id = ?").bind(userId),
-        env.DB.prepare("DELETE FROM onboarding_preferences WHERE user_id = ?").bind(userId)
+        env.DB.prepare("DELETE FROM onboarding_preferences WHERE user_id = ?").bind(userId),
+        env.DB.prepare("DELETE FROM goals WHERE user_id = ?").bind(userId),
+        env.DB.prepare("DELETE FROM app_selections WHERE user_id = ?").bind(userId),
+        env.DB.prepare("DELETE FROM notification_profiles WHERE user_id = ?").bind(userId),
+        env.DB.prepare("DELETE FROM users WHERE id = ?").bind(userId)
       ];
 
       await env.DB.batch(batch);
