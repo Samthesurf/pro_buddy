@@ -412,6 +412,70 @@ export default {
       return methodNotAllowed();
     }
 
+    // ==================== App Use Cases (Global Cache) ====================
+
+    if (path === "/v1/app-use-cases/bulk") {
+      if (request.method !== "POST") return methodNotAllowed();
+
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+      const packageNames = body.package_names;
+      if (!Array.isArray(packageNames) || packageNames.length === 0) {
+        return badRequest("package_names_required");
+      }
+
+      // Limit to 200 packages per request
+      const limitedPackages = packageNames.slice(0, 200);
+
+      // Build query with placeholders
+      const placeholders = limitedPackages.map(() => "?").join(",");
+      const sql = `SELECT package_name, app_name, use_cases, category, created_at_ms FROM app_use_cases WHERE package_name IN (${placeholders})`;
+
+      const res = await env.DB.prepare(sql).bind(...limitedPackages).all();
+      const rows = (res && res.results) || [];
+
+      const items = rows.map((r) => ({
+        package_name: r.package_name,
+        app_name: r.app_name,
+        use_cases: r.use_cases,
+        category: r.category,
+        created_at_ms: r.created_at_ms,
+      }));
+
+      return json({ items, total: items.length });
+    }
+
+    if (path === "/v1/app-use-cases") {
+      if (request.method !== "POST") return methodNotAllowed();
+
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== "object") return badRequest("invalid_json");
+
+      const packageName = String(body.package_name || "");
+      const appName = String(body.app_name || "");
+      const useCases = String(body.use_cases || "[]");
+      const category = body.category ? String(body.category) : null;
+      const createdAtMs = Number(body.created_at_ms) || Date.now();
+
+      if (!isNonEmptyString(packageName)) return badRequest("package_name_required");
+      if (!isNonEmptyString(appName)) return badRequest("app_name_required");
+
+      const stmt = env.DB.prepare(`
+        INSERT INTO app_use_cases (package_name, app_name, use_cases, category, created_at_ms)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(package_name) DO UPDATE SET
+          app_name = excluded.app_name,
+          use_cases = excluded.use_cases,
+          category = excluded.category,
+          created_at_ms = excluded.created_at_ms
+      `);
+
+      await stmt.bind(packageName, appName, useCases, category, createdAtMs).run();
+
+      return json({ ok: true });
+    }
+
     // ==================== User Data Deletion ====================
 
     if (path === "/v1/user/data") {
@@ -424,6 +488,7 @@ export default {
       if (!isNonEmptyString(userId)) return badRequest("user_id_required");
 
       // Delete from all tables (including onboarding_preferences)
+      // Note: app_use_cases is global, not per-user, so not deleted here
       const batch = [
         env.DB.prepare("DELETE FROM usage_feedback WHERE user_id = ?").bind(userId),
         env.DB.prepare("DELETE FROM notification_cooldowns WHERE user_id = ?").bind(userId),

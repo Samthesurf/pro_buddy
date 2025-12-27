@@ -760,3 +760,129 @@ Return ONLY the JSON."""
                 "score_percent": 0,
                 "reason": "Unable to evaluate progress due to an internal error.",
             }
+
+    async def batch_generate_use_cases(
+        self,
+        apps: List[Dict[str, str]],
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Generate use cases for multiple apps in a single Gemini call.
+
+        Args:
+            apps: List of dicts with 'app_name' and 'package_name' keys
+
+        Returns:
+            Dict mapping package_name to {use_cases: List[str], category: str}
+        """
+        if not apps:
+            return {}
+
+        # Batch up to 50 apps per call to avoid token limits
+        batch_size = 50
+        all_results = {}
+
+        for i in range(0, len(apps), batch_size):
+            batch = apps[i:i + batch_size]
+            
+            apps_list = "\n".join([
+                f"- {app['app_name']} ({app['package_name']})"
+                for app in batch
+            ])
+
+            prompt = f"""Generate common use cases for these Android apps. Focus on productivity-related use cases.
+
+APPS:
+{apps_list}
+
+For each app, provide 3-5 short, actionable use cases (e.g., "Note-taking", "Project management", "Learning tutorials").
+
+Respond with a JSON object where keys are package names:
+{{
+  "com.example.app": {{
+    "use_cases": ["Use case 1", "Use case 2", "Use case 3"],
+    "category": "productivity|social|entertainment|gaming|utility|health|education|communication|finance|other"
+  }},
+  ...
+}}
+
+Keep use cases concise (1-3 words each). Respond ONLY with the JSON object."""
+
+            try:
+                response = await self.client.aio.models.generate_content(
+                    model=self.model,
+                    contents=prompt,
+                )
+                
+                response_text = response.text.strip()
+                # Handle markdown code blocks
+                if response_text.startswith("```"):
+                    response_text = response_text.split("```")[1]
+                    if response_text.startswith("json"):
+                        response_text = response_text[4:]
+                    response_text = response_text.strip()
+                
+                batch_results = json.loads(response_text)
+                all_results.update(batch_results)
+                
+            except Exception as e:
+                print(f"Error generating batch use cases: {e}")
+                # Return empty use cases for failed batch
+                for app in batch:
+                    all_results[app['package_name']] = {
+                        "use_cases": [],
+                        "category": "other"
+                    }
+
+        return all_results
+
+    async def generate_app_list(
+        self,
+        categories: List[str],
+        count_per_category: int = 10,
+    ) -> List[Dict[str, str]]:
+        """
+        Generate a list of popular apps for given categories.
+        
+        Args:
+            categories: List of categories to generate apps for
+            count_per_category: Number of apps to generate per category
+            
+        Returns:
+            List of dicts with 'app_name' and 'package_name'
+        """
+        categories_str = ", ".join(categories)
+        prompt = f"""Generate a list of popular Android apps for these specific categories: {categories_str}.
+        
+        For each category, list {count_per_category} distinct, real apps.
+        Include a mix of very popular global apps and highly rated niche apps.
+        Do NOT make up fake package names; use real ones if possible, or reasonable estimates if the exact package is unknown (e.g. com.developer.app).
+        
+        Respond with a JSON object containing a single list "apps":
+        {{
+            "apps": [
+                {{"app_name": "App Name", "package_name": "com.example.package", "category": "Category Name"}},
+                ...
+            ]
+        }}
+        
+        Respond ONLY with the JSON object."""
+        
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=prompt,
+            )
+            
+            response_text = response.text.strip()
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+            
+            result = json.loads(response_text)
+            return result.get("apps", [])
+            
+        except Exception as e:
+            print(f"Error generating app list: {e}")
+            return []

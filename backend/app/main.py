@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import auth, onboarding, monitor, chat
+from .routers import auth, onboarding, monitor, chat, apps
 from .services.cloudflare_service import CloudflareVectorizeService
 from .services.gemini_service import GeminiService
 
@@ -74,6 +74,11 @@ def create_app() -> FastAPI:
         chat.router,
         prefix="/api/v1/chat",
         tags=["Chat"],
+    )
+    app.include_router(
+        apps.router,
+        prefix="/api/v1/apps",
+        tags=["Apps"],
     )
 
     @app.get("/", tags=["Health"])

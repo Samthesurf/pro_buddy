@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:installed_apps/app_info.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/auth_cubit.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
+import '../widgets/use_case_chips_dialog.dart';
 
 class AppSelectionScreen extends StatefulWidget {
   const AppSelectionScreen({super.key});
@@ -18,6 +21,10 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
   final Map<String, String> _appReasons = {};
   bool _isLoading = true;
   bool _isSaving = false;
+
+  // App use cases from AI
+  Map<String, List<String>> _appUseCases = {};
+  bool _isLoadingUseCases = false;
 
   // Search functionality
   final TextEditingController _searchController = TextEditingController();
@@ -59,9 +66,41 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
         _installedApps = apps..sort((a, b) => a.name.compareTo(b.name));
         _isLoading = false;
       });
+
+      // Trigger background fetch of use cases
+      _fetchUseCases();
     } catch (e) {
       debugPrint('Error fetching apps: $e');
       setState(() => _isLoading = false);
+    }
+  }
+
+  /// Background fetch of AI-generated use cases for all installed apps
+  Future<void> _fetchUseCases() async {
+    if (_installedApps.isEmpty) return;
+
+    setState(() => _isLoadingUseCases = true);
+
+    try {
+      // Prepare app list for API call
+      final appsList = _installedApps
+          .map((app) => {'package_name': app.packageName, 'app_name': app.name})
+          .toList();
+
+      // Call API (will return cached or generate new)
+      final useCases = await ApiService.instance.getAppUseCases(appsList);
+
+      if (mounted) {
+        setState(() {
+          _appUseCases = useCases;
+          _isLoadingUseCases = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching use cases: $e');
+      if (mounted) {
+        setState(() => _isLoadingUseCases = false);
+      }
     }
   }
 
@@ -78,48 +117,22 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
   }
 
   Future<void> _showReasonDialog(AppInfo app) async {
-    final controller = TextEditingController();
+    // Get AI-generated use cases for this app (if loaded)
+    final aiUseCases = _appUseCases[app.packageName];
+
     final reason = await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('Why use ${app.name}?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('How does this app help you achieve your goals?'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: 'e.g. For coding, research, etc.',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              // Cancel selection if no reason provided? Or allow empty?
-              // Let's remove selection if cancelled
-              Navigator.of(context).pop();
-            },
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(context).pop(controller.text.trim());
-            },
-            child: const Text('Save'),
-          ),
-        ],
+      builder: (context) => UseCaseChipsDialog(
+        appName: app.name,
+        packageName: app.packageName,
+        aiSuggestedUseCases: aiUseCases,
+        initialReason: _appReasons[app.packageName],
       ),
     );
 
-    if (reason == null) {
-      // User cancelled dialog
+    if (reason == null || reason.isEmpty) {
+      // User cancelled dialog - remove selection
       setState(() {
         _selectedPackageNames.remove(app.packageName);
       });
@@ -143,6 +156,7 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
               'package_name': app.packageName,
               'app_name': app.name,
               'reason': _appReasons[app.packageName] ?? '',
+              //TODO: Think about this value later and what to do with it
               'importance_rating': 5, // Default for now
             },
           )
@@ -153,6 +167,10 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
 
       // 3. Complete Onboarding
       await ApiService.instance.completeOnboarding();
+
+      if (!mounted) return;
+      // Notify AuthCubit that onboarding is done so it updates local state/storage
+      context.read<AuthCubit>().completeOnboarding();
 
       if (!mounted) return;
 
@@ -181,6 +199,10 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
     setState(() => _isSaving = true);
     try {
       await ApiService.instance.completeOnboarding();
+
+      if (mounted) {
+        context.read<AuthCubit>().completeOnboarding();
+      }
     } catch (e) {
       debugPrint('Error skipping onboarding: $e');
       // Still allow the user to continue; they explicitly chose to skip.

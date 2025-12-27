@@ -128,6 +128,34 @@ class AuthCubit extends Cubit<AuthState> {
     // State updated via stream listener
   }
 
+  Future<void> refreshProfile() async {
+    // Re-check profile from backend (useful after updates)
+    if (state.user == null) return;
+
+    try {
+      final profile = await ApiService.instance.getUserProfile();
+      final isOnboardingComplete =
+          profile['onboarding_complete'] as bool? ?? false;
+
+      if (isOnboardingComplete != state.isOnboardingComplete) {
+        emit(state.copyWith(isOnboardingComplete: isOnboardingComplete));
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  Future<void> completeOnboarding() async {
+    if (state.user == null) return;
+
+    // 1. Update local storage immediately for fast next-startup check
+    await OnboardingStorage.setHasSeenOnboarding(true);
+    await OnboardingStorage.setLastOnboardedUserId(state.user!.uid);
+
+    // 2. Update memory state immediately so UI reacts without waiting for a re-fetch
+    emit(state.copyWith(isOnboardingComplete: true));
+  }
+
   Future<void> resetAccount() async {
     emit(state.copyWith(isLoading: true));
     try {

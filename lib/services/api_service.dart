@@ -312,6 +312,57 @@ class ApiService {
     );
     return response.data as Map<String, dynamic>;
   }
+
+  // ==================== Apps Endpoints ====================
+
+  /// Get use cases for multiple apps (from cache or AI-generated)
+  Future<Map<String, List<String>>> getAppUseCases(
+    List<Map<String, String>> apps,
+  ) async {
+    if (apps.isEmpty) return {};
+
+    try {
+      final response = await _dio.post(
+        '/apps/use-cases/bulk',
+        data: {
+          'apps': apps
+              .map(
+                (app) => {
+                  'package_name': app['package_name'],
+                  'app_name': app['app_name'],
+                },
+              )
+              .toList(),
+        },
+      );
+
+      final results = response.data['results'] as Map<String, dynamic>? ?? {};
+      final Map<String, List<String>> useCases = {};
+
+      for (final entry in results.entries) {
+        final data = entry.value as Map<String, dynamic>? ?? {};
+        final cases = data['use_cases'] as List<dynamic>? ?? [];
+        useCases[entry.key] = cases.map((e) => e.toString()).toList();
+      }
+
+      return useCases;
+    } catch (e) {
+      print('[ApiService] Failed to get app use cases: $e');
+      return {};
+    }
+  }
+
+  /// Get universal fallback use cases
+  static List<String> get universalUseCases => [
+    'Work & Productivity',
+    'Learning & Research',
+    'Communication',
+    'Health & Wellness',
+    'Entertainment',
+    'Organization',
+    'Creativity',
+    'Finance',
+  ];
 }
 
 /// Interceptor to add Firebase auth token to requests

@@ -325,6 +325,65 @@ class UsageStoreService:
             )
             resp.raise_for_status()
 
+    async def get_app_use_cases_bulk(
+        self,
+        package_names: List[str],
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch cached app use cases from D1 for multiple packages.
+
+        Returns:
+            List of dicts with package_name, app_name, use_cases, category, created_at_ms
+        """
+        if not self.configured or not package_names:
+            return []
+
+        payload = {"package_names": package_names}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/app-use-cases/bulk"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            items = data.get("items") or []
+            return items if isinstance(items, list) else []
+
+    async def store_app_use_case(
+        self,
+        *,
+        package_name: str,
+        app_name: str,
+        use_cases: List[str],
+        category: Optional[str] = None,
+    ) -> None:
+        """
+        Store app use cases in D1 cache.
+        """
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        import json as json_lib
+        from datetime import datetime, timezone
+
+        payload = {
+            "package_name": package_name,
+            "app_name": app_name,
+            "use_cases": json_lib.dumps(use_cases),
+            "category": category,
+            "created_at_ms": int(datetime.now(timezone.utc).timestamp() * 1000),
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/app-use-cases"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
 
 usage_store_service = UsageStoreService(
     base_url=settings.usage_store_worker_url,
