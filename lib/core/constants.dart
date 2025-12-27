@@ -4,12 +4,12 @@ class AppConstants {
   AppConstants._();
 
   // App Info
-  static const String appName = 'Pro Buddy';
+  static const String appName = 'Hawk Buddy';
   static const String appVersion = '1.0.0';
 
   // API Configuration
   // Use reverse proxy domain
-  static const String baseUrl = 'https://hawkbuddy.92.5.59.163.sslip.io/api/v1'; 
+  static const String baseUrl = 'https://hawkbuddy.92.5.59.163.sslip.io/api/v1';
   static const Duration apiTimeout = Duration(seconds: 60);
 
   // Storage Keys

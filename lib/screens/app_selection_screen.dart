@@ -9,7 +9,9 @@ import '../services/api_service.dart';
 import '../widgets/use_case_chips_dialog.dart';
 
 class AppSelectionScreen extends StatefulWidget {
-  const AppSelectionScreen({super.key});
+  final bool fromSettings;
+
+  const AppSelectionScreen({super.key, this.fromSettings = false});
 
   @override
   State<AppSelectionScreen> createState() => _AppSelectionScreenState();
@@ -43,6 +45,9 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
   void initState() {
     super.initState();
     _fetchApps();
+    if (widget.fromSettings) {
+      _loadExistingSelections();
+    }
   }
 
   @override
@@ -101,6 +106,32 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
       if (mounted) {
         setState(() => _isLoadingUseCases = false);
       }
+    }
+  }
+
+  Future<void> _loadExistingSelections() async {
+    try {
+      final result = await ApiService.instance.getAppSelections();
+      final selections = (result['selections'] as List<dynamic>?) ?? [];
+
+      if (mounted) {
+        setState(() {
+          for (final selection in selections) {
+            final selectionMap = selection as Map<String, dynamic>;
+            final packageName = selectionMap['package_name'] as String?;
+            final reason = selectionMap['reason'] as String?;
+
+            if (packageName != null) {
+              _selectedPackageNames.add(packageName);
+              if (reason != null && reason.isNotEmpty) {
+                _appReasons[packageName] = reason;
+              }
+            }
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading existing selections: $e');
     }
   }
 
@@ -165,28 +196,45 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
       // 2. Save apps
       await ApiService.instance.saveAppSelections(apps: selectedAppsData);
 
-      // 3. Complete Onboarding
-      await ApiService.instance.completeOnboarding();
+      if (widget.fromSettings) {
+        // Coming from settings - just go back
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('App selections updated'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        // Coming from onboarding - complete onboarding and navigate to dashboard
+        // 3. Complete Onboarding
+        await ApiService.instance.completeOnboarding();
 
-      if (!mounted) return;
-      // Notify AuthCubit that onboarding is done so it updates local state/storage
-      context.read<AuthCubit>().completeOnboarding();
+        if (!mounted) return;
+        // Notify AuthCubit that onboarding is done so it updates local state/storage
+        context.read<AuthCubit>().completeOnboarding();
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      // 4. Navigate to Dashboard
-      // The AuthWrapper should pick up the change on next app launch,
-      // but for immediate transition we push replacement.
-      // Ideally update AuthCubit state here too.
-      Navigator.of(
-        context,
-      ).pushNamedAndRemoveUntil(AppRoutes.dashboard, (route) => false);
+        // 4. Navigate to Dashboard
+        // The AuthWrapper should pick up the change on next app launch,
+        // but for immediate transition we push replacement.
+        // Ideally update AuthCubit state here too.
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil(AppRoutes.dashboard, (route) => false);
+      }
     } catch (e) {
       debugPrint('Error completing onboarding: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to complete setup. Please try again.'),
+        SnackBar(
+          content: Text(
+            widget.fromSettings
+                ? 'Failed to update selections. Please try again.'
+                : 'Failed to complete setup. Please try again.',
+          ),
         ),
       );
     } finally {
@@ -221,7 +269,7 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Select Helper Apps'),
+        title: Text(widget.fromSettings ? 'Manage Apps' : 'Select Helper Apps'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -234,10 +282,11 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
               ),
             ),
           ),
-          TextButton(
-            onPressed: _isSaving ? null : _skipOnboarding,
-            child: const Text('Skip'),
-          ),
+          if (!widget.fromSettings)
+            TextButton(
+              onPressed: _isSaving ? null : _skipOnboarding,
+              child: const Text('Skip'),
+            ),
         ],
       ),
       body: Column(
@@ -435,7 +484,13 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
                             ),
                           const SizedBox(width: 12),
                           Text(
-                            _isSaving ? 'Setting up...' : 'Complete Setup',
+                            _isSaving
+                                ? (widget.fromSettings
+                                      ? 'Saving...'
+                                      : 'Setting up...')
+                                : (widget.fromSettings
+                                      ? 'Save Changes'
+                                      : 'Complete Setup'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,

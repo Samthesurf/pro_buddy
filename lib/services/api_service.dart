@@ -84,6 +84,12 @@ class ApiService {
     return response.data as Map<String, dynamic>;
   }
 
+  /// Get app selections
+  Future<Map<String, dynamic>> getAppSelections() async {
+    final response = await _dio.get('/onboarding/apps');
+    return response.data as Map<String, dynamic>;
+  }
+
   /// Complete onboarding process
   Future<Map<String, dynamic>> completeOnboarding() async {
     final response = await _dio.post('/onboarding/complete');

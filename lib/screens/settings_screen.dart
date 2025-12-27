@@ -21,6 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Map<String, dynamic>? _goals;
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _preferences;
+  Map<String, dynamic>? _selectedApps;
   String? _error;
 
   @override
@@ -40,6 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ApiService.instance.getGoals(),
         ApiService.instance.getNotificationProfile(),
         ApiService.instance.getOnboardingPreferences(),
+        ApiService.instance.getAppSelections(),
       ]);
 
       if (!mounted) return;
@@ -65,6 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _profile = profileData;
 
         _preferences = futures[2];
+        _selectedApps = futures[3];
         _isLoading = false;
       });
     } catch (e) {
@@ -125,6 +128,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 12),
                   _buildPreferencesCard(),
+
+                  const SizedBox(height: 24),
+
+                  // Selected Apps Section
+                  _buildSectionHeader(
+                    icon: Icons.apps_rounded,
+                    title: 'Selected Apps',
+                    subtitle: 'Apps that help you achieve your goals',
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSelectedAppsCard(),
 
                   const SizedBox(height: 24),
 
@@ -698,6 +713,95 @@ class _SettingsScreenState extends State<SettingsScreen> {
               word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '',
         )
         .join(' ');
+  }
+
+  Widget _buildSelectedAppsCard() {
+    final appsList = (_selectedApps?['selections'] as List<dynamic>?) ?? [];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (appsList.isNotEmpty)
+              ...appsList.map((app) {
+                final appMap = app as Map<String, dynamic>;
+                return Column(
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.apps_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      title: Text(
+                        appMap['app_name'] ?? 'Unknown App',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      subtitle:
+                          appMap['reason'] != null &&
+                              appMap['reason'].toString().isNotEmpty
+                          ? Text(
+                              appMap['reason'],
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            )
+                          : null,
+                    ),
+                    if (appsList.last != app) const Divider(height: 8),
+                  ],
+                );
+              }),
+
+            // Empty state
+            if (appsList.isEmpty)
+              Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.apps_outlined,
+                      size: 48,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No apps selected yet',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Add/Modify Apps Button
+            if (appsList.isNotEmpty) const SizedBox(height: 16),
+            Center(
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pushNamed(
+                    AppRoutes.appSelection,
+                    arguments: {'fromSettings': true},
+                  );
+                },
+                icon: Icon(
+                  appsList.isEmpty ? Icons.add_rounded : Icons.edit_rounded,
+                  size: 18,
+                ),
+                label: Text(
+                  appsList.isEmpty ? 'Select Apps' : 'Modify Selection',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildActionsCard() {

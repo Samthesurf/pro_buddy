@@ -10,11 +10,7 @@ class AuthScreen extends StatefulWidget {
   final bool isSignIn;
   final Map<String, dynamic>? onboardingData;
 
-  const AuthScreen({
-    super.key,
-    this.isSignIn = true,
-    this.onboardingData,
-  });
+  const AuthScreen({super.key, this.isSignIn = true, this.onboardingData});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -82,13 +78,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
     // Check for deferred onboarding data
     final data = _onboardingData;
-    
+
     // Check if this is legacy goal data (has 'content' key with a non-null String value)
     final hasLegacyGoalData = data != null && data['content'] is String;
-    
+
     // Check if this is new onboarding data (has 'onboarding_data' key)
-    final hasNewOnboardingData = data != null && data['onboarding_data'] != null;
-    
+    final hasNewOnboardingData =
+        data != null && data['onboarding_data'] != null;
+
     if (hasLegacyGoalData) {
       // Legacy flow: save goals from GoalsInputScreen
       setState(() {
@@ -125,27 +122,41 @@ class _AuthScreenState extends State<AuthScreen> {
         _isSavingData = true;
         _hasSaveError = false;
       });
-      
+
       try {
         // Save onboarding preferences (challenges, habits) separately from primary goals
         final onboardingData = data['onboarding_data'] as Map<String, dynamic>?;
         if (onboardingData != null) {
           await ApiService.instance.saveOnboardingPreferences(
-            challenges: (onboardingData['challenges'] as List<dynamic>?)?.cast<String>() ?? [],
-            habits: (onboardingData['habits'] as List<dynamic>?)?.cast<String>() ?? [],
-            distractionHours: (onboardingData['distraction_hours'] as num?)?.toDouble() ?? 0,
-            focusDurationMinutes: (onboardingData['focus_duration_minutes'] as num?)?.toDouble() ?? 0,
+            challenges:
+                (onboardingData['challenges'] as List<dynamic>?)
+                    ?.cast<String>() ??
+                [],
+            habits:
+                (onboardingData['habits'] as List<dynamic>?)?.cast<String>() ??
+                [],
+            distractionHours:
+                (onboardingData['distraction_hours'] as num?)?.toDouble() ?? 0,
+            focusDurationMinutes:
+                (onboardingData['focus_duration_minutes'] as num?)
+                    ?.toDouble() ??
+                0,
             goalClarity: (onboardingData['goal_clarity'] as num?)?.toInt() ?? 5,
-            productiveTime: onboardingData['productive_time'] as String? ?? 'Morning',
-            checkInFrequency: onboardingData['check_in_frequency'] as String? ?? 'Daily',
+            productiveTime:
+                onboardingData['productive_time'] as String? ?? 'Morning',
+            checkInFrequency:
+                onboardingData['check_in_frequency'] as String? ?? 'Daily',
           );
         }
-        
+
         if (!mounted) return;
         // Go directly to Goal Discovery to ask for actual primary goals
         Navigator.of(context).pushReplacementNamed(
           AppRoutes.goalDiscovery,
-          arguments: {'fromOnboarding': true, 'onboarding_data': data['onboarding_data']},
+          arguments: {
+            'fromOnboarding': true,
+            'onboarding_data': data['onboarding_data'],
+          },
         );
       } catch (e) {
         if (!mounted) return;
@@ -166,12 +177,41 @@ class _AuthScreenState extends State<AuthScreen> {
       body: BlocConsumer<AuthCubit, AuthState>(
         listener: (context, state) {
           if (state.errorMessage != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage!),
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
+            // Check if this is a "user not found" error while trying to sign in
+            final isUserNotFound = state.errorMessage!.contains(
+              'No account found',
             );
+
+            if (isUserNotFound && _isSignIn) {
+              // Automatically switch to sign-up mode
+              setState(() {
+                _isSignIn = false;
+              });
+
+              // Show a helpful message
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text(
+                    'No account found with this email. Please create a new account.',
+                  ),
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  duration: const Duration(seconds: 4),
+                  action: SnackBarAction(
+                    label: 'OK',
+                    textColor: Colors.white,
+                    onPressed: () {},
+                  ),
+                ),
+              );
+            } else {
+              // Show regular error message
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.errorMessage!),
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+              );
+            }
           } else if (state.status == AuthStatus.authenticated) {
             _handleAuthenticated(state);
           }
@@ -179,13 +219,18 @@ class _AuthScreenState extends State<AuthScreen> {
         builder: (context, state) {
           // If we are authenticated and have data, we are either saving or failed to save.
           // We should not show the login form.
-          if (state.status == AuthStatus.authenticated && _onboardingData != null) {
+          if (state.status == AuthStatus.authenticated &&
+              _onboardingData != null) {
             if (_hasSaveError) {
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.red,
+                    ),
                     const SizedBox(height: 16),
                     const Text('Failed to save your goals.'),
                     const SizedBox(height: 24),
@@ -199,10 +244,10 @@ class _AuthScreenState extends State<AuthScreen> {
                     const SizedBox(height: 12),
                     TextButton(
                       onPressed: () {
-                         // Skip saving and go to dashboard/discovery
-                         Navigator.of(context).pushReplacementNamed(
-                            AppRoutes.dashboard,
-                         );
+                        // Skip saving and go to dashboard/discovery
+                        Navigator.of(
+                          context,
+                        ).pushReplacementNamed(AppRoutes.dashboard);
                       },
                       child: const Text('Skip & Continue'),
                     ),
@@ -224,9 +269,7 @@ class _AuthScreenState extends State<AuthScreen> {
           }
 
           if (_isSavingData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           return SafeArea(
@@ -247,9 +290,8 @@ class _AuthScreenState extends State<AuthScreen> {
                       const SizedBox(height: 24),
                       Text(
                         _isSignIn ? 'Welcome Back!' : 'Create Account',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
@@ -258,8 +300,8 @@ class _AuthScreenState extends State<AuthScreen> {
                             ? 'Sign in to continue tracking your goals'
                             : 'Join us to start your journey',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 48),
@@ -354,8 +396,11 @@ class _AuthScreenState extends State<AuthScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Text(
                               'OR',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.outline,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.outline,
                                   ),
                             ),
                           ),
@@ -368,11 +413,14 @@ class _AuthScreenState extends State<AuthScreen> {
                       OutlinedButton.icon(
                         onPressed: state.isLoading
                             ? null
-                            : () => context.read<AuthCubit>().signInWithGoogle(),
+                            : () =>
+                                  context.read<AuthCubit>().signInWithGoogle(),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        icon: const Icon(Icons.login), // Placeholder for Google Logo
+                        icon: const Icon(
+                          Icons.login,
+                        ), // Placeholder for Google Logo
                         label: const Text('Continue with Google'),
                       ),
 

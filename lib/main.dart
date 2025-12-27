@@ -97,9 +97,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (_didNavigate) return;
 
     if (state.status == AuthStatus.authenticated) {
-      // Logged-in users always go straight to the dashboard.
-      _didNavigate = true;
-      Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+      // Check if user has completed onboarding
+      if (state.isOnboardingComplete) {
+        // User has completed onboarding - go to dashboard
+        _didNavigate = true;
+        Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+      } else {
+        // User is authenticated but hasn't completed onboarding
+        // Send them to app selection (they can skip if they want)
+        _didNavigate = true;
+        Navigator.of(context).pushReplacementNamed(AppRoutes.appSelection);
+      }
     } else if (state.status == AuthStatus.unauthenticated) {
       // Onboarding is only for truly new installs. Returning (logged-out) users
       // go straight to auth.

@@ -185,7 +185,7 @@ class AuthCubit extends Cubit<AuthState> {
     if (error is FirebaseAuthException) {
       switch (error.code) {
         case 'user-not-found':
-          return 'No user found for that email.';
+          return 'No account found with this email. Please sign up to create a new account.';
         case 'wrong-password':
           return 'Wrong password provided for that user.';
         case 'email-already-in-use':
@@ -194,6 +194,8 @@ class AuthCubit extends Cubit<AuthState> {
           return 'The email address is not valid.';
         case 'weak-password':
           return 'The password provided is too weak.';
+        case 'invalid-credential':
+          return 'Invalid login credentials. Please check your email and password.';
         default:
           return 'Authentication failed. Please try again.';
       }

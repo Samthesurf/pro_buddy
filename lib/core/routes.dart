@@ -86,7 +86,12 @@ class AppRouter {
         return _buildRoute(const GoalsInputScreen(), settings);
 
       case AppRoutes.appSelection:
-        return _buildRoute(const AppSelectionScreen(), settings);
+        final args = settings.arguments as Map<String, dynamic>?;
+        final fromSettings = args?['fromSettings'] as bool? ?? false;
+        return _buildRoute(
+          AppSelectionScreen(fromSettings: fromSettings),
+          settings,
+        );
 
       case AppRoutes.onboardingSummary:
         return _buildRoute(

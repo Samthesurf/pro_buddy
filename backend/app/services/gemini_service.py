@@ -279,30 +279,26 @@ Keep it warm, personal, and motivating. Respond with just the summary, no additi
             Transcribed text or None on error
         """
         try:
-            # Upload the audio file using the Files API
-            upload_response = await self.client.aio.files.upload(
-                file=audio_data,
-                mime_type=mime_type,
-            )
+            from google.genai import types
             
-            # Generate content with the uploaded file
+            # Use inline audio data approach for voice messages
+            # This is simpler and more reliable for smaller audio files
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=[
-                    upload_response,
-                    "Transcribe this audio to text. Provide only the transcription without any additional commentary."
+                    "Transcribe this audio to text. Provide only the transcription without any additional commentary.",
+                    types.Part.from_bytes(
+                        data=audio_data,
+                        mime_type=mime_type,
+                    )
                 ],
             )
-            
-            # Delete the uploaded file to save storage
-            try:
-                await self.client.aio.files.delete(name=upload_response.name)
-            except Exception as e:
-                print(f"Warning: Failed to delete uploaded audio file: {e}")
             
             return response.text.strip()
         except Exception as e:
             print(f"Error transcribing audio: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     async def process_progress_report(
