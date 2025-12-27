@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-// import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../bloc/auth_cubit.dart';
 import '../bloc/auth_state.dart';
 import '../core/routes.dart';
@@ -418,9 +418,11 @@ class _AuthScreenState extends State<AuthScreen> {
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        icon: const Icon(
-                          Icons.login,
-                        ), // Placeholder for Google Logo
+                        icon: SvgPicture.asset(
+                          'assets/images/onboarding/google_g_logo.svg',
+                          height: 24,
+                          width: 24,
+                        ),
                         label: const Text('Continue with Google'),
                       ),
 
