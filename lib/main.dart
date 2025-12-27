@@ -11,6 +11,8 @@ import 'bloc/progress_score_cubit.dart';
 import 'bloc/theme_cubit.dart';
 import 'core/core.dart';
 import 'services/onboarding_storage.dart';
+import 'services/restoration_service.dart';
+import 'services/restoration_route_observer.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,8 +39,38 @@ Future<void> main() async {
   );
 }
 
-class ProBuddyApp extends StatelessWidget {
+class ProBuddyApp extends StatefulWidget {
   const ProBuddyApp({super.key});
+
+  @override
+  State<ProBuddyApp> createState() => _ProBuddyAppState();
+}
+
+class _ProBuddyAppState extends State<ProBuddyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // When app goes to background, we don't mark it as proper shutdown
+    // Only if the app is detached (killed) do we potentially want to restore
+    if (state == AppLifecycleState.detached) {
+      // App is being killed - this is rare to catch, but if we do,
+      // mark it as proper shutdown if we can
+      RestorationService.markProperShutdown();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +80,9 @@ class ProBuddyApp extends StatelessWidget {
           title: AppConstants.appName,
           debugShowCheckedModeBanner: false,
 
+          // Enable state restoration
+          restorationScopeId: 'pro_buddy_root',
+
           // Theme configuration - Cozy theme is now the official light mode!
           theme: CozyTheme.light,
           darkTheme: AppTheme.dark,
@@ -56,6 +91,9 @@ class ProBuddyApp extends StatelessWidget {
           // Navigation
           onGenerateRoute: AppRouter.generateRoute,
           home: const AuthWrapper(),
+
+          // Track route changes for restoration
+          navigatorObservers: [RestorationRouteObserver()],
         );
       },
     );
@@ -72,24 +110,55 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _didNavigate = false;
   AuthStatus? _previousStatus;
+  bool _isRestoringState = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final state = context.read<AuthCubit>().state;
-      _checkAuth(state);
+      _checkForRestoration();
     });
   }
 
-  Future<void> _checkAuth(AuthState state) async {
+  /// Check if we should restore from a previous session
+  Future<void> _checkForRestoration() async {
     if (!mounted) return;
+
+    final shouldRestore = await RestorationService.shouldRestore();
+
+    if (shouldRestore) {
+      // Try to restore to the last route
+      final lastRoute = await RestorationService.getLastRoute();
+      final lastRouteArgs = await RestorationService.getLastRouteArguments();
+
+      if (lastRoute != null && mounted) {
+        print('Restoring to last route: $lastRoute');
+        _isRestoringState = true;
+        _didNavigate = true;
+
+        // Navigate to the last route
+        Navigator.of(
+          context,
+        ).pushReplacementNamed(lastRoute, arguments: lastRouteArgs);
+        return;
+      }
+    }
+
+    // No restoration needed, proceed with normal auth check
+    final state = context.read<AuthCubit>().state;
+    _checkAuth(state);
+  }
+
+  Future<void> _checkAuth(AuthState state) async {
+    if (!mounted || _isRestoringState) return;
 
     // If status changed from authenticated to unauthenticated, user signed out
     // Reset navigation flag and navigate to sign-in
     if (_previousStatus == AuthStatus.authenticated &&
         state.status == AuthStatus.unauthenticated) {
       _didNavigate = false; // Reset so we can navigate again
+      // Clear restoration data on logout
+      await RestorationService.markProperShutdown();
     }
 
     _previousStatus = state.status;
@@ -102,11 +171,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // User has completed onboarding - go to dashboard
         _didNavigate = true;
         Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+        // Save this route for restoration
+        await RestorationService.saveRoute(AppRoutes.dashboard);
       } else {
         // User is authenticated but hasn't completed onboarding
         // Send them to app selection (they can skip if they want)
         _didNavigate = true;
         Navigator.of(context).pushReplacementNamed(AppRoutes.appSelection);
+        await RestorationService.saveRoute(AppRoutes.appSelection);
       }
     } else if (state.status == AuthStatus.unauthenticated) {
       // Onboarding is only for truly new installs. Returning (logged-out) users
@@ -115,9 +187,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (!mounted) return;
 
       _didNavigate = true;
-      Navigator.of(context).pushReplacementNamed(
-        hasSeenOnboarding ? AppRoutes.signIn : AppRoutes.onboardingSplash,
-      );
+      final route = hasSeenOnboarding
+          ? AppRoutes.signIn
+          : AppRoutes.onboardingSplash;
+      Navigator.of(context).pushReplacementNamed(route);
+      // Don't save auth routes for restoration - always start fresh on these
+      await RestorationService.markProperShutdown();
     }
   }
 

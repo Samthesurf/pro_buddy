@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/onboarding_storage.dart';
+import '../services/restoration_service.dart';
 import 'auth_state.dart';
 
 class AuthCubit extends Cubit<AuthState> {
@@ -122,6 +123,8 @@ class AuthCubit extends Cubit<AuthState> {
     emit(state.copyWith(isLoading: true));
     try {
       await _authService.signOut();
+      // Clear restoration data so we don't try to restore after logout
+      await RestorationService.clearRestorationData();
     } catch (_) {
       // Ignore errors on sign out
     }
