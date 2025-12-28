@@ -134,6 +134,10 @@ class CloudflareVectorizeService:
             # Handle 404 gracefully - index may not exist yet
             if response.status_code == 404:
                 return {"success": True, "result": {"matches": []}}
+            # Handle 400 gracefully - metadata filter may not be indexed
+            if response.status_code == 400:
+                print(f"Warning: Vectorize query returned 400 (metadata index may not exist): {response.text}")
+                return {"success": False, "result": {"matches": []}, "error": response.text}
             response.raise_for_status()
             return response.json()
 
@@ -373,21 +377,56 @@ class CloudflareVectorizeService:
 
     async def delete_user_data(self, user_id: str) -> None:
         """Delete all data for a user."""
-        # First, query to get all user's vector IDs
-        # We need to do a broad search to find all user vectors
-        query_embedding = await self._generate_embedding(f"user {user_id}")
+        # Approach 1: Try to query for user vectors with filter
+        # This may fail with 400 if metadata index is not configured
+        try:
+            query_embedding = await self._generate_embedding(f"user {user_id}")
+            results = await self._query_vectors(
+                self.index_name_users,
+                query_embedding,
+                top_k=1000,
+                filter_metadata={"user_id": {"$eq": user_id}},
+            )
 
-        results = await self._query_vectors(
-            self.index_name_users,
-            query_embedding,
-            top_k=1000,  # Get as many as possible
-            filter_metadata={"user_id": {"$eq": user_id}},
-        )
-
-        if results.get("success") and results.get("result", {}).get("matches"):
-            ids_to_delete = [match["id"] for match in results["result"]["matches"]]
-            if ids_to_delete:
-                await self._delete_vectors(self.index_name_users, ids_to_delete)
+            if results.get("success") and results.get("result", {}).get("matches"):
+                ids_to_delete = [match["id"] for match in results["result"]["matches"]]
+                if ids_to_delete:
+                    await self._delete_vectors(self.index_name_users, ids_to_delete)
+                    print(f"Deleted {len(ids_to_delete)} vectors via query filter.")
+                    return
+        except Exception as e:
+            print(f"Query-based deletion failed (metadata index may not exist): {e}")
+        
+        # Approach 2: Try to delete by known ID patterns
+        # This is a fallback when metadata filtering isn't available
+        known_prefixes = [
+            f"goal_{user_id}_",
+            f"app_{user_id}_",
+            f"onboarding_prefs_{user_id}",
+            f"progress_{user_id}_",
+            f"progress_session_{user_id}_",
+            f"chat_{user_id}_",
+            f"goalchat_{user_id}_",
+            f"notification_profile_{user_id}",
+        ]
+        
+        # We can't enumerate all IDs, but we can try to delete known patterns
+        # Try deleting the notification profile and onboarding prefs directly
+        known_single_ids = [
+            f"onboarding_prefs_{user_id}",
+            f"notification_profile_{user_id}",
+        ]
+        
+        try:
+            await self._delete_vectors(self.index_name_users, known_single_ids)
+            print(f"Deleted known single-ID vectors for user {user_id}.")
+        except Exception as e:
+            print(f"Single-ID deletion also failed: {e}")
+        
+        # Note: For a complete cleanup, you would need to either:
+        # 1. Create a metadata index for user_id in Vectorize settings
+        # 2. Keep track of vector IDs elsewhere (e.g., D1) for deletion
+        print("Warning: Some user vectors may remain. Configure metadata indexing for complete cleanup.")
 
     # ==================== App Knowledge Methods ====================
 
