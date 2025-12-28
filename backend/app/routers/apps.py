@@ -48,18 +48,24 @@ async def _get_cached_use_cases(package_names: List[str]) -> dict[str, AppUseCas
 
 
 async def _store_use_cases(entries: List[AppUseCaseEntry]):
-    """Store use cases in D1 cache."""
+    """Store use cases in D1 cache.
+    
+    Only stores entries with non-empty use cases to prevent poisoning the cache
+    with failed generations.
+    """
     if not usage_store_service.configured:
         return
 
     try:
         for entry in entries:
-            await usage_store_service.store_app_use_case(
-                package_name=entry.package_name,
-                app_name=entry.app_name,
-                use_cases=entry.use_cases,
-                category=entry.category,
-            )
+            # Only store if we have actual use cases (prevent poisoned cache)
+            if entry.use_cases and len(entry.use_cases) > 0:
+                await usage_store_service.store_app_use_case(
+                    package_name=entry.package_name,
+                    app_name=entry.app_name,
+                    use_cases=entry.use_cases,
+                    category=entry.category,
+                )
     except Exception as e:
         print(f"Error storing use cases: {e}")
 
@@ -193,3 +199,28 @@ async def populate_use_cases(
         "generated": len(new_entries),
         "skipped": len(cached),
     }
+
+
+@router.delete("/use-cases/cleanup")
+async def cleanup_empty_use_cases(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Clean up poisoned cache entries (empty use cases from failed Gemini calls).
+    
+    This endpoint removes app use cases that have empty use_cases arrays,
+    allowing the system to regenerate them on subsequent requests.
+    """
+    if not usage_store_service.configured:
+        raise HTTPException(status_code=503, detail="Storage service not configured")
+    
+    try:
+        result = await usage_store_service.cleanup_empty_app_use_cases()
+        return {
+            "success": True,
+            "deleted_count": result.get("deleted_count", 0),
+            "message": result.get("message", "Cleanup completed"),
+        }
+    except Exception as e:
+        print(f"Error cleaning up empty use cases: {e}")
+        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")

@@ -476,6 +476,25 @@ export default {
       return json({ ok: true });
     }
 
+    if (path === "/v1/app-use-cases/cleanup") {
+      if (request.method !== "DELETE") return methodNotAllowed();
+
+      // Delete app use cases that have empty use_cases arrays (poisoned cache)
+      // This cleans up failed Gemini generations
+      const stmt = env.DB.prepare(`
+        DELETE FROM app_use_cases 
+        WHERE use_cases = '[]' OR use_cases IS NULL OR use_cases = ''
+      `);
+
+      const result = await stmt.run();
+
+      return json({
+        ok: true,
+        deleted_count: result.changes || 0,
+        message: `Cleaned up ${result.changes || 0} empty use case entries`
+      });
+    }
+
     // ==================== Users (Persistent Storage) ====================
 
     if (path === "/v1/users") {

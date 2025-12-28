@@ -384,6 +384,25 @@ class UsageStoreService:
             )
             resp.raise_for_status()
 
+    async def cleanup_empty_app_use_cases(self) -> Dict[str, Any]:
+        """
+        Clean up poisoned cache entries (app use cases with empty use_cases arrays).
+        
+        Returns:
+            Dict with 'deleted_count' and 'message'
+        """
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.request(
+                "DELETE",
+                self._url("/v1/app-use-cases/cleanup"),
+                headers=self._headers(),
+            )
+            resp.raise_for_status()
+            return resp.json()
+
     # ==================== Users (Persistent Storage) ====================
 
     async def upsert_user(

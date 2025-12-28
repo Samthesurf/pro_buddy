@@ -92,69 +92,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ? _buildErrorState()
           : RefreshIndicator(
               onRefresh: _loadData,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // Primary Goals Section
-                  _buildSectionHeader(
-                    icon: Icons.flag_rounded,
-                    title: 'Primary Goals',
-                    subtitle: 'Your main objectives',
-                    color: colorScheme.primary,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildGoalsCard(),
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // Primary Goals Section
+                    _buildSectionHeader(
+                      icon: Icons.flag_rounded,
+                      title: 'Primary Goals',
+                      subtitle: 'Your main objectives',
+                      color: colorScheme.primary,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildGoalsCard(),
 
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                  // Notification Profile Section
-                  _buildSectionHeader(
-                    icon: Icons.notifications_rounded,
-                    title: 'Notification Profile',
-                    subtitle: 'How we personalize your nudges',
-                    color: colorScheme.secondary,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildProfileCard(),
+                    // Notification Profile Section
+                    _buildSectionHeader(
+                      icon: Icons.notifications_rounded,
+                      title: 'Notification Profile',
+                      subtitle: 'How we personalize your nudges',
+                      color: colorScheme.secondary,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildProfileCard(),
 
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                  // Onboarding Preferences Section
-                  _buildSectionHeader(
-                    icon: Icons.psychology_rounded,
-                    title: 'Habits & Challenges',
-                    subtitle: 'Your routines and focus areas',
-                    color: colorScheme.tertiary,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPreferencesCard(),
+                    // Onboarding Preferences Section
+                    _buildSectionHeader(
+                      icon: Icons.psychology_rounded,
+                      title: 'Habits & Challenges',
+                      subtitle: 'Your routines and focus areas',
+                      color: colorScheme.tertiary,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPreferencesCard(),
 
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                  // Selected Apps Section
-                  _buildSectionHeader(
-                    icon: Icons.apps_rounded,
-                    title: 'Selected Apps',
-                    subtitle: 'Apps that help you achieve your goals',
-                    color: colorScheme.primary,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildSelectedAppsCard(),
+                    // Selected Apps Section
+                    _buildSectionHeader(
+                      icon: Icons.apps_rounded,
+                      title: 'Selected Apps',
+                      subtitle: 'Apps that help you achieve your goals',
+                      color: colorScheme.primary,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildSelectedAppsCard(),
 
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                  // Actions Section
-                  _buildSectionHeader(
-                    icon: Icons.tune_rounded,
-                    title: 'Actions',
-                    subtitle: 'Manage your account',
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildActionsCard(),
+                    // Actions Section
+                    _buildSectionHeader(
+                      icon: Icons.tune_rounded,
+                      title: 'Actions',
+                      subtitle: 'Manage your account',
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildActionsCard(),
 
-                  const SizedBox(height: 32),
-                ],
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
             ),
     );
@@ -725,36 +728,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (appsList.isNotEmpty)
-              ...appsList.map((app) {
-                final appMap = app as Map<String, dynamic>;
-                return Column(
-                  children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        Icons.apps_rounded,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      title: Text(
-                        appMap['app_name'] ?? 'Unknown App',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      subtitle:
-                          appMap['reason'] != null &&
-                              appMap['reason'].toString().isNotEmpty
-                          ? Text(
-                              appMap['reason'],
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            )
-                          : null,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: appsList.map((app) {
+                        final appMap = app as Map<String, dynamic>;
+                        return Column(
+                          children: [
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(
+                                Icons.apps_rounded,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              title: Text(
+                                appMap['app_name'] ?? 'Unknown App',
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(fontWeight: FontWeight.w500),
+                              ),
+                              subtitle:
+                                  appMap['reason'] != null &&
+                                      appMap['reason'].toString().isNotEmpty
+                                  ? Text(
+                                      appMap['reason'],
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    )
+                                  : null,
+                            ),
+                            if (appsList.last != app) const Divider(height: 8),
+                          ],
+                        );
+                      }).toList(),
                     ),
-                    if (appsList.last != app) const Divider(height: 8),
-                  ],
-                );
-              }),
+                  ),
+                ),
+              ),
 
             // Empty state
             if (appsList.isEmpty)

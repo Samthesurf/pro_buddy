@@ -328,6 +328,7 @@ class ApiService {
     if (apps.isEmpty) return {};
 
     try {
+      // Use extended timeout for this endpoint since Gemini AI generation can take a while
       final response = await _dio.post(
         '/apps/use-cases/bulk',
         data: {
@@ -340,6 +341,11 @@ class ApiService {
               )
               .toList(),
         },
+        options: Options(
+          receiveTimeout: const Duration(
+            minutes: 5,
+          ), // 5 minutes for large AI requests
+        ),
       );
 
       final results = response.data['results'] as Map<String, dynamic>? ?? {};

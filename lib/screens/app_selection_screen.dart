@@ -26,7 +26,6 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
 
   // App use cases from AI
   Map<String, List<String>> _appUseCases = {};
-  bool _isLoadingUseCases = false;
 
   // Search functionality
   final TextEditingController _searchController = TextEditingController();
@@ -84,8 +83,6 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
   Future<void> _fetchUseCases() async {
     if (_installedApps.isEmpty) return;
 
-    setState(() => _isLoadingUseCases = true);
-
     try {
       // Prepare app list for API call
       final appsList = _installedApps
@@ -98,14 +95,10 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
       if (mounted) {
         setState(() {
           _appUseCases = useCases;
-          _isLoadingUseCases = false;
         });
       }
     } catch (e) {
       debugPrint('Error fetching use cases: $e');
-      if (mounted) {
-        setState(() => _isLoadingUseCases = false);
-      }
     }
   }
 

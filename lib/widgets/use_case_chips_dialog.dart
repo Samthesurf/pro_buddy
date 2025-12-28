@@ -26,7 +26,12 @@ class UseCaseChipsDialog extends StatefulWidget {
 class _UseCaseChipsDialogState extends State<UseCaseChipsDialog> {
   final Set<String> _selectedUseCases = {};
   final TextEditingController _customController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   bool _showCustomInput = false;
+
+  // AI use cases - can be loaded asynchronously
+  List<String>? _aiUseCases;
+  bool _isLoadingUseCases = false;
 
   @override
   void initState() {
@@ -35,11 +40,41 @@ class _UseCaseChipsDialogState extends State<UseCaseChipsDialog> {
     if (widget.initialReason != null && widget.initialReason!.isNotEmpty) {
       _selectedUseCases.add(widget.initialReason!);
     }
+    // Initialize with provided use cases or fetch them
+    if (widget.aiSuggestedUseCases != null &&
+        widget.aiSuggestedUseCases!.isNotEmpty) {
+      _aiUseCases = widget.aiSuggestedUseCases;
+    } else {
+      _fetchUseCases();
+    }
+  }
+
+  Future<void> _fetchUseCases() async {
+    setState(() => _isLoadingUseCases = true);
+
+    try {
+      final useCases = await ApiService.instance.getAppUseCases([
+        {'package_name': widget.packageName, 'app_name': widget.appName},
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _aiUseCases = useCases[widget.packageName] ?? [];
+          _isLoadingUseCases = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching use cases for dialog: $e');
+      if (mounted) {
+        setState(() => _isLoadingUseCases = false);
+      }
+    }
   }
 
   @override
   void dispose() {
     _customController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -71,197 +106,209 @@ class _UseCaseChipsDialogState extends State<UseCaseChipsDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final aiCases = widget.aiSuggestedUseCases ?? [];
+    final aiCases = _aiUseCases ?? [];
     final universalCases = ApiService.universalUseCases;
 
     return AlertDialog(
       title: Text('Why use ${widget.appName}?'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select how this app helps you achieve your goals:',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // AI-suggested use cases
-            if (aiCases.isNotEmpty) ...[
-              Row(
-                children: [
-                  Icon(Icons.auto_awesome, size: 16, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Suggested for this app',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
+      content: Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        radius: const Radius.circular(4),
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 12), // Space for scrollbar
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select how this app helps you achieve your goals:',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: aiCases.map((useCase) {
-                  final isSelected = _selectedUseCases.contains(useCase);
-                  return FilterChip(
-                    label: Text(useCase),
-                    selected: isSelected,
-                    onSelected: (_) => _toggleUseCase(useCase),
-                    selectedColor: AppColors.primary.withValues(alpha: 0.2),
-                    checkmarkColor: AppColors.primary,
-                    labelStyle: TextStyle(
-                      color: isSelected
-                          ? AppColors.primary
-                          : theme.colorScheme.onSurface,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-            ] else ...[
-              // Loading indicator for AI suggestions
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.5,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                const SizedBox(height: 16),
+
+                // AI-suggested use cases
+                if (aiCases.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        size: 16,
                         color: AppColors.primary,
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Loading app-specific suggestions...',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                      const SizedBox(width: 6),
+                      Text(
+                        'Suggested for this app',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Universal categories
-            Text(
-              'General categories',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: universalCases.map((useCase) {
-                final isSelected = _selectedUseCases.contains(useCase);
-                return FilterChip(
-                  label: Text(useCase),
-                  selected: isSelected,
-                  onSelected: (_) => _toggleUseCase(useCase),
-                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
-                  checkmarkColor: AppColors.primary,
-                  labelStyle: TextStyle(
-                    color: isSelected
-                        ? AppColors.primary
-                        : theme.colorScheme.onSurface,
-                    fontWeight: isSelected
-                        ? FontWeight.w600
-                        : FontWeight.normal,
+                    ],
                   ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: aiCases.map((useCase) {
+                      final isSelected = _selectedUseCases.contains(useCase);
+                      return FilterChip(
+                        label: Text(useCase),
+                        selected: isSelected,
+                        onSelected: (_) => _toggleUseCase(useCase),
+                        selectedColor: AppColors.primary.withValues(alpha: 0.2),
+                        checkmarkColor: AppColors.primary,
+                        labelStyle: TextStyle(
+                          color: isSelected
+                              ? AppColors.primary
+                              : theme.colorScheme.onSurface,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                ] else if (_isLoadingUseCases) ...[
+                  // Loading indicator for AI suggestions
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Loading app-specific suggestions...',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
-            // Custom input toggle
-            if (!_showCustomInput)
-              TextButton.icon(
-                onPressed: () => setState(() => _showCustomInput = true),
-                icon: const Icon(Icons.edit, size: 18),
-                label: const Text('Write custom reason'),
-              )
-            else
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: _customController,
-                    decoration: InputDecoration(
-                      hintText: 'e.g., For learning tutorials',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                // Universal categories
+                Text(
+                  'General categories',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: universalCases.map((useCase) {
+                    final isSelected = _selectedUseCases.contains(useCase);
+                    return FilterChip(
+                      label: Text(useCase),
+                      selected: isSelected,
+                      onSelected: (_) => _toggleUseCase(useCase),
+                      selectedColor: AppColors.primary.withValues(alpha: 0.2),
+                      checkmarkColor: AppColors.primary,
+                      labelStyle: TextStyle(
+                        color: isSelected
+                            ? AppColors.primary
+                            : theme.colorScheme.onSurface,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+
+                // Custom input toggle
+                if (!_showCustomInput)
+                  TextButton.icon(
+                    onPressed: () => setState(() => _showCustomInput = true),
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Write custom reason'),
+                  )
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: _customController,
+                        decoration: InputDecoration(
+                          hintText: 'e.g., For learning tutorials',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.add_circle_outline),
+                            onPressed: _addCustomUseCase,
+                          ),
+                        ),
+                        onSubmitted: (_) => _addCustomUseCase(),
+                        autofocus: true,
                       ),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
-                        onPressed: _addCustomUseCase,
+                    ],
+                  ),
+
+                // Selected summary
+                if (_selectedUseCases.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.3),
                       ),
                     ),
-                    onSubmitted: (_) => _addCustomUseCase(),
-                    autofocus: true,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _combinedReason,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
-              ),
-
-            // Selected summary
-            if (_selectedUseCases.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle,
-                      size: 18,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _combinedReason,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
+              ],
+            ),
+          ),
         ),
       ),
       actions: [
