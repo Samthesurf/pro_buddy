@@ -1,4 +1,4 @@
-# Pro Buddy
+# Hawk Buddy
 
 Goal-aligned productivity companion. A Flutter app plus FastAPI backend that helps you stay focused on what matters.
 
