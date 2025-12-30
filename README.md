@@ -18,6 +18,7 @@ Goal-aligned productivity companion. A Flutter app plus FastAPI backend that hel
     - Manages user goals and app categorization.
     - Powers the AI chat using Google Gemini.
     - Uses Cloudflare Vectorize for semantic understanding of goals.
+    - Persists all data via Cloudflare Worker + D1 database (see `backend/cloudflare/usage-store-worker/`).
 - `conductor/`: Project management and architectural documentation.
 
 ## Getting Started
@@ -56,10 +57,14 @@ Goal-aligned productivity companion. A Flutter app plus FastAPI backend that hel
 ## Current Status
 -   **Frontend:** Core flows (Onboarding, Goal Discovery, Dashboard) are implemented and functional. Usage history and settings are currently placeholders.
 -   **Backend:** Fully functional for the implemented frontend features.
--   **Persistence:** Currently using in-memory storage for some features.
-    -   **Active Track:** Moving to persistent storage using Cloudflare D1 (see `conductor/tracks/d1_persistence_20251220/`).
+-   **Persistence:** All user data is persisted in **Cloudflare D1** via a Cloudflare Worker.
+    -   User profiles, goals, app selections, notification profiles, usage feedback, progress scores, and cooldown states are stored persistently.
+    -   In-memory caching is used for performance, with write-through to D1.
+    -   See `backend/cloudflare/usage-store-worker/` for the Worker implementation and D1 schema.
 
 ## Deployment
+
+### Backend API
 The backend is currently deployed on **Oracle Cloud Always Free** tier.
 
 **Stack:**
@@ -69,3 +74,17 @@ The backend is currently deployed on **Oracle Cloud Always Free** tier.
 -   **Access:** SSH.
 
 For setup details or replication, refer to `backend/DEPLOY_ORACLE.md`.
+
+### Persistent Storage
+All user data is persisted via a **Cloudflare Worker + D1 database**.
+
+**What's stored in D1:**
+-   User profiles and onboarding status
+-   Goals and app selections
+-   Notification profiles (from goal discovery)
+-   Usage feedback and history
+-   Progress scores and streaks
+-   Notification cooldown states
+-   App use cases cache
+
+For setup and deployment details, see `backend/cloudflare/usage-store-worker/README.md`.
