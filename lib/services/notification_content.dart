@@ -19,7 +19,8 @@ class NotificationContent {
     final variant = now.day % 3;
 
     final userName = (profile.preferredNameForUser ?? '').trim();
-    final assistantName = (profile.preferredNameForAssistant ?? 'Pro Buddy').trim();
+    final assistantName = (profile.preferredNameForAssistant ?? 'Hawk Buddy')
+        .trim();
     final identity = (profile.identity ?? '').trim();
     final goal = (profile.primaryGoal ?? '').trim();
     final why = (profile.why ?? '').trim();
@@ -140,7 +141,9 @@ class NotificationCache {
     await prefs.setString(_kCheckInFrequency, value);
   }
 
-  static Future<String> loadCheckInFrequency({String fallback = 'Daily'}) async {
+  static Future<String> loadCheckInFrequency({
+    String fallback = 'Daily',
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_kCheckInFrequency) ?? fallback;
   }
@@ -158,6 +161,10 @@ class NotificationCache {
     final reason = prefs.getString(_kLastScoreReason);
     final dateUtc = prefs.getString(_kLastScoreDateUtc);
     if (percent == null || reason == null || dateUtc == null) return null;
-    return LastProgressScore(scorePercent: percent, reason: reason, dateUtc: dateUtc);
+    return LastProgressScore(
+      scorePercent: percent,
+      reason: reason,
+      dateUtc: dateUtc,
+    );
   }
 }

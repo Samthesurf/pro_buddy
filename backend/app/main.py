@@ -1,5 +1,5 @@
 """
-Pro Buddy API - FastAPI Application Entry Point
+Hawk Buddy API - FastAPI Application Entry Point
 
 A goal-tracking backend that monitors app usage and provides
 AI-powered feedback using Google Gemini and Cloudflare Vectorize.
@@ -36,9 +36,9 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
-        title=settings.app_name,
+        title="Hawk Buddy API",
         version=settings.app_version,
-        description="API for Pro Buddy - Goal-aligned app usage monitoring",
+        description="API for Hawk Buddy - Goal-aligned app usage monitoring",
         lifespan=lifespan,
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,

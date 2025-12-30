@@ -1,4 +1,4 @@
-// Application constants for Pro Buddy
+// Application constants for Hawk Buddy
 
 class AppConstants {
   AppConstants._();

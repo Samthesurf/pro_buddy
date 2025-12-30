@@ -43,7 +43,7 @@ def _personalize_notification_message(
     if not profile:
         return base_message
 
-    assistant_name = (profile.get("preferred_name_for_assistant") or "Pro Buddy").strip()
+    assistant_name = (profile.get("preferred_name_for_assistant") or "Hawk Buddy").strip()
     user_name = (profile.get("preferred_name_for_user") or "").strip()
     identity = (profile.get("identity") or "").strip()
     primary_goal = (profile.get("primary_goal") or "").strip()

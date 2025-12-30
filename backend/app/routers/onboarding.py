@@ -173,7 +173,7 @@ def _render_question(question_key: str, profile: dict, ask_count: int) -> str:
         return (
             "Let’s start simple: what’s the single goal that matters most to you right now?"
             if ask_count == 0
-            else "Quick reset — what’s the #1 goal you want Pro Buddy to help protect this week?"
+            else "Quick reset — what’s the #1 goal you want Hawk Buddy to help protect this week?"
         )
 
     if question_key == "why":
@@ -239,7 +239,7 @@ def _render_question(question_key: str, profile: dict, ask_count: int) -> str:
         )
 
     # Fallback (shouldn’t happen)
-    return "What would you like Pro Buddy to know so notifications feel helpful, not annoying?"
+    return "What would you like Hawk Buddy to know so notifications feel helpful, not annoying?"
 
 
 def _merge_notification_profile(existing: dict, update: dict) -> dict:

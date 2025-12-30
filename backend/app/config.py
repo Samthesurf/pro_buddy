@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     )
 
     # Application
-    app_name: str = "Pro Buddy API"
+    app_name: str = "Hawk Buddy API"
     app_version: str = "1.0.0"
     debug: bool = False
 
@@ -39,13 +39,13 @@ class Settings(BaseSettings):
     cloudflare_embedding_model: str = "@cf/baai/bge-m3"
 
     # Cloudflare Vectorize
-    vectorize_index_users: str = "pro-buddy-users"
-    vectorize_index_apps: str = "pro-buddy-apps"
+    vectorize_index_users: str = "hawk-buddy-users"
+    vectorize_index_apps: str = "hawk-buddy-apps"
 
     # Usage history persistence (Cloudflare Worker + D1)
     # If set, the backend will store usage history + cooldowns via the Worker
     # instead of keeping in-memory dictionaries.
-    usage_store_worker_url: str = "https://pro-buddy-usage-store.hawkbuddy.workers.dev"
+    usage_store_worker_url: str = "https://hawk-buddy-usage-store.hawkbuddy.workers.dev"
     usage_store_worker_token: str = "sammysurf"
 
     # Rate Limiting

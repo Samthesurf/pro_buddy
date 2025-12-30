@@ -1,3 +1,3 @@
-"""Pro Buddy Backend Application."""
+"""Hawk Buddy Backend Application."""
 
 __version__ = "1.0.0"
