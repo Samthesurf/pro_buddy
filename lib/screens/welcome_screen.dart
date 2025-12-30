@@ -22,14 +22,8 @@ class WelcomeScreen extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: isDark
-                ? [
-                    AppColors.backgroundDark,
-                    AppColors.surfaceDark,
-                  ]
-                : [
-                    Colors.white,
-                    orangeLight.withValues(alpha: 0.16),
-                  ],
+                ? [AppColors.backgroundDark, AppColors.surfaceDark]
+                : [Colors.white, orangeLight.withValues(alpha: 0.16)],
           ),
         ),
         child: SafeArea(
@@ -57,10 +51,7 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(10),
-                    child: Image.asset(
-                      AssetPaths.logo,
-                      fit: BoxFit.contain,
-                    ),
+                    child: Image.asset(AssetPaths.logo, fit: BoxFit.contain),
                   ),
                 ),
                 const SizedBox(height: 28),
@@ -73,7 +64,7 @@ class WelcomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Your favourite bird that sees you and makes sure you achieve your goals.',
+                  'Stop letting distractions steal your career goals. See exactly how your phone usage aligns with what you\'re building.',
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                     height: 1.5,
@@ -84,7 +75,9 @@ class WelcomeScreen extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surface.withValues(alpha: isDark ? 0.18 : 0.95),
+                    color: theme.colorScheme.surface.withValues(
+                      alpha: isDark ? 0.18 : 0.95,
+                    ),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: theme.colorScheme.outline.withValues(alpha: 0.6),
@@ -109,9 +102,8 @@ class WelcomeScreen extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pushNamed(
-                      AppRoutes.goalsInput,
-                    ),
+                    onPressed: () =>
+                        Navigator.of(context).pushNamed(AppRoutes.goalsInput),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: orange,
                       foregroundColor: Colors.white,

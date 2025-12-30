@@ -35,6 +35,13 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
 
   bool _isRecording = false;
 
+  // Notification context (when opened from a notification tap)
+  String? _triggerApp;
+  String? _triggerPackage;
+  String? _notificationType;
+  String? _notificationMessage;
+  bool _hasShownNotificationPopup = false;
+
   late AnimationController _promptAnimationController;
   late Animation<double> _promptFadeAnimation;
   late Animation<Offset> _promptSlideAnimation;
@@ -44,8 +51,114 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
     super.initState();
     _setupAnimations();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _parseNotificationContext();
       context.read<ChatCubit>().loadHistory();
+      // Show popup after a short delay if opened from notification
+      if (_triggerApp != null && !_hasShownNotificationPopup) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) _showNotificationContextPopup();
+        });
+      }
     });
+  }
+
+  /// Parse notification context from route arguments
+  void _parseNotificationContext() {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic>) {
+      _triggerApp = args['triggerApp'] as String?;
+      _triggerPackage = args['triggerPackage'] as String?;
+      _notificationType = args['notificationType'] as String?;
+      _notificationMessage = args['message'] as String?;
+    }
+  }
+
+  /// Show contextual popup when opened from a notification
+  Future<void> _showNotificationContextPopup() async {
+    _hasShownNotificationPopup = true;
+    final theme = Theme.of(context);
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.flag_rounded, color: theme.colorScheme.primary),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Quick Check-in')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'What have you done today?',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Are you inching ever so slightly towards where you want to be?',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            if (_triggerApp != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.apps_rounded,
+                      color: theme.colorScheme.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'You\'ve been using $_triggerApp',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Got it'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _focusNode.requestFocus();
+            },
+            child: const Text('Log Now'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _setupAnimations() {
@@ -443,13 +556,13 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pro Buddy',
+                  'Hawk Buddy',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  'Your progress companion',
+                  'Your focus companion',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -548,7 +661,7 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
 
                       // Main question
                       Text(
-                        "What's today's\nprogress?",
+                        "How did you spend\nyour time today?",
                         textAlign: TextAlign.center,
                         style: theme.textTheme.displaySmall?.copyWith(
                           fontWeight: FontWeight.bold,
@@ -576,11 +689,20 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
                         children: [
                           _buildQuickPrompt(
                             context,
-                            "🎯 Made progress on my goals",
+                            "🎯 Made progress on my project",
                           ),
-                          _buildQuickPrompt(context, "💪 Stayed focused today"),
-                          _buildQuickPrompt(context, "🤔 Facing a challenge"),
-                          _buildQuickPrompt(context, "✨ Small win to share"),
+                          _buildQuickPrompt(
+                            context,
+                            "💪 Stayed focused, minimal distractions",
+                          ),
+                          _buildQuickPrompt(
+                            context,
+                            "🤔 Got distracted, need help",
+                          ),
+                          _buildQuickPrompt(
+                            context,
+                            "✨ Shipped something small",
+                          ),
                         ],
                       ),
                     ],

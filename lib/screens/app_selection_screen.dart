@@ -287,7 +287,7 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              'Choose the apps that help you stay productive and achieve your goals.',
+              "Which apps help you make progress on your goals? We'll track when you're using these vs. getting distracted.",
               style: theme.textTheme.bodyLarge?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

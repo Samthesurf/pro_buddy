@@ -13,6 +13,11 @@ import 'core/core.dart';
 import 'services/onboarding_storage.dart';
 import 'services/restoration_service.dart';
 import 'services/restoration_route_observer.dart';
+import 'services/notification_service.dart';
+import 'services/background_service.dart';
+
+/// Global navigator key for notification navigation
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +31,12 @@ Future<void> main() async {
   // Initialize Firebase with generated options
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  // Initialize notification service with tap handler
+  await NotificationService.instance.initialize(onTap: _handleNotificationTap);
+
+  // Initialize background service
+  await BackgroundService.instance.initialize();
+
   runApp(
     MultiBlocProvider(
       providers: [
@@ -36,6 +47,27 @@ Future<void> main() async {
       ],
       child: const ProBuddyApp(),
     ),
+  );
+}
+
+/// Handle notification taps - navigate to progress chat with context
+void _handleNotificationTap(NotificationPayload? payload) {
+  if (payload == null) return;
+
+  // Use the global navigator key to navigate
+  final navigator = navigatorKey.currentState;
+  if (navigator == null) return;
+
+  // All notification types lead to the progress chat screen
+  // Pass the notification context as arguments
+  navigator.pushNamed(
+    AppRoutes.progressChat,
+    arguments: {
+      'notificationType': payload.type.name,
+      'triggerApp': payload.appName,
+      'triggerPackage': payload.packageName,
+      'message': payload.message,
+    },
   );
 }
 
@@ -79,6 +111,9 @@ class _ProBuddyAppState extends State<ProBuddyApp> with WidgetsBindingObserver {
         return MaterialApp(
           title: AppConstants.appName,
           debugShowCheckedModeBanner: false,
+
+          // Global navigator key for notification navigation
+          navigatorKey: navigatorKey,
 
           // Enable state restoration
           restorationScopeId: 'pro_buddy_root',

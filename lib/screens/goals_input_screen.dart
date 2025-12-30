@@ -61,10 +61,7 @@ class _GoalsInputScreenState extends State<GoalsInputScreen> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -131,14 +128,8 @@ class _GoalsInputScreenState extends State<GoalsInputScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: isDark
-                ? [
-                    AppColors.backgroundDark,
-                    AppColors.surfaceDark,
-                  ]
-                : [
-                    Colors.white,
-                    orangeLight.withValues(alpha: 0.12),
-                  ],
+                ? [AppColors.backgroundDark, AppColors.surfaceDark]
+                : [Colors.white, orangeLight.withValues(alpha: 0.12)],
           ),
         ),
         child: SafeArea(
@@ -154,22 +145,22 @@ class _GoalsInputScreenState extends State<GoalsInputScreen> {
                   onPageChanged: _onPageChanged,
                   children: [
                     _QuestionPage(
-                      title: 'What do you want to achieve?',
-                      subtitle:
-                          'Keep it simple. One clear goal is perfect.',
+                      title: 'What career goal or project are you building?',
+                      subtitle: 'Keep it simple. One clear goal is perfect.',
                       controller: _goalController,
-                      hintText: 'Example: Finish my portfolio and apply for 10 jobs',
+                      hintText:
+                          'e.g., Launch my freelance business, Get promoted, Ship my side project',
                       multiline: true,
                       icon: Icons.flag_rounded,
                       accent: orange,
                       onEditingComplete: _handlePrimaryAction,
                     ),
                     _QuestionPage(
-                      title: 'Why is this important to you?',
-                      subtitle:
-                          'This will help Hawk Buddy keep you motivated.',
+                      title: 'Why does this matter for your future?',
+                      subtitle: 'This will help Hawk Buddy keep you motivated.',
                       controller: _reasonController,
-                      hintText: 'Example: It will help me get a better role and support my family',
+                      hintText:
+                          'e.g., It will help me get a better role and support my family',
                       multiline: true,
                       icon: Icons.favorite_rounded,
                       accent: orange,
@@ -177,19 +168,24 @@ class _GoalsInputScreenState extends State<GoalsInputScreen> {
                     ),
                     _QuestionPage(
                       title: "What's your timeline?",
-                      subtitle:
-                          'A deadline helps us keep your plan realistic.',
+                      subtitle: 'A deadline helps us keep your plan realistic.',
                       controller: _timelineController,
                       hintText: 'Example: 3 months',
                       multiline: false,
                       icon: Icons.schedule_rounded,
                       accent: orange,
-                      suggestions: const ['1 week', '1 month', '3 months', '6 months'],
+                      suggestions: const [
+                        '1 week',
+                        '1 month',
+                        '3 months',
+                        '6 months',
+                      ],
                       onSuggestion: (value) {
                         _timelineController.text = value;
-                        _timelineController.selection = TextSelection.fromPosition(
-                          TextPosition(offset: value.length),
-                        );
+                        _timelineController.selection =
+                            TextSelection.fromPosition(
+                              TextPosition(offset: value.length),
+                            );
                       },
                       onEditingComplete: _handlePrimaryAction,
                     ),
@@ -251,10 +247,7 @@ class _GoalsInputScreenState extends State<GoalsInputScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({
-    required this.pageIndex,
-    required this.onBack,
-  });
+  const _Header({required this.pageIndex, required this.onBack});
 
   final int pageIndex;
   final VoidCallback onBack;
@@ -411,10 +404,10 @@ class _QuestionPage extends StatelessWidget {
             maxLines: multiline ? 5 : 1,
             minLines: multiline ? 3 : 1,
             textCapitalization: TextCapitalization.sentences,
-            keyboardType: multiline ? TextInputType.multiline : TextInputType.text,
-            decoration: InputDecoration(
-              hintText: hintText,
-            ),
+            keyboardType: multiline
+                ? TextInputType.multiline
+                : TextInputType.text,
+            decoration: InputDecoration(hintText: hintText),
             onEditingComplete: () => onEditingComplete(),
           ),
           if (suggestions != null && suggestions!.isNotEmpty) ...[
@@ -426,8 +419,9 @@ class _QuestionPage extends StatelessWidget {
                   .map(
                     (s) => ActionChip(
                       label: Text(s),
-                      backgroundColor:
-                          theme.colorScheme.surface.withValues(alpha: 0.9),
+                      backgroundColor: theme.colorScheme.surface.withValues(
+                        alpha: 0.9,
+                      ),
                       side: BorderSide(
                         color: theme.colorScheme.outline.withValues(alpha: 0.6),
                       ),
