@@ -14,6 +14,7 @@ import '../screens/onboarding/challenges_screen.dart';
 import '../screens/onboarding/routine_builder_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/goal_discovery_cubit.dart';
+import '../screens/settings/notification_settings_screen.dart';
 
 /// Route names for navigation
 class AppRoutes {
@@ -142,10 +143,7 @@ class AppRouter {
         );
 
       case AppRoutes.notifications:
-        return _buildRoute(
-          const _PlaceholderScreen(title: 'Notification Settings'),
-          settings,
-        );
+        return _buildRoute(const NotificationSettingsScreen(), settings);
 
       default:
         return _buildRoute(const _NotFoundScreen(), settings);

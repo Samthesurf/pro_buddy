@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:flutter_svg/flutter_svg.dart';
+
 import '../core/routes.dart';
 import '../core/cozy_theme.dart';
 import '../bloc/progress_score_cubit.dart';
@@ -14,6 +16,7 @@ import '../bloc/usage_history_cubit.dart';
 import '../models/usage_feedback.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/background_service.dart';
+import '../widgets/app_icon_widget.dart';
 
 class CozyDashboardScreen extends StatelessWidget {
   const CozyDashboardScreen({super.key});
@@ -428,21 +431,47 @@ class CozyDashboardScreen extends StatelessWidget {
     return BlocBuilder<DailyUsageSummaryCubit, DailyUsageSummaryState>(
       builder: (context, state) {
         if (state.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.6),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Center(child: CircularProgressIndicator()),
+          );
         }
 
         final summary = state.summary;
         if (summary == null || summary.totalCount == 0) {
           return Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.transparent,
-              ), // Placeholder for consistent layout
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.6),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: const Center(
               child: Text("No time logged yet. Start a session!"),
@@ -457,7 +486,7 @@ class CozyDashboardScreen extends StatelessWidget {
         final misalignedPct = 100 - alignedPct - neutralPct;
 
         return Container(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(24),
@@ -479,7 +508,7 @@ class CozyDashboardScreen extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: SizedBox(
-                  height: 32, // Thicker bar
+                  height: 32,
                   child: Row(
                     children: [
                       if (alignedPct > 0)
@@ -777,10 +806,10 @@ class CozyDashboardScreen extends StatelessWidget {
             }
 
             return Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(32),
                 border: Border.all(
                   color: Theme.of(
                     context,
@@ -788,15 +817,15 @@ class CozyDashboardScreen extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
               child: Column(
                 children: [
-                  // Total screen time
+                  // Total screen time header
                   FutureBuilder<Duration>(
                     future: UsageTrackingService.instance
                         .getTotalScreenTimeToday(),
@@ -805,18 +834,22 @@ class CozyDashboardScreen extends StatelessWidget {
                       return Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: CozyColors.accent.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(14),
+                              color: CozyColors.accent.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Icon(
-                              Icons.timer_outlined,
-                              color: CozyColors.accent,
-                              size: 24,
+                            child: SvgPicture.asset(
+                              'assets/images/stuff/stopwatch_1.svg',
+                              width: 28,
+                              height: 28,
+                              colorFilter: ColorFilter.mode(
+                                CozyColors.accent,
+                                BlendMode.srcIn,
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 16),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -824,16 +857,22 @@ class CozyDashboardScreen extends StatelessWidget {
                                 UsageTrackingService.instance.formatDuration(
                                   total,
                                 ),
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(fontWeight: FontWeight.bold),
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface,
+                                    ),
                               ),
                               Text(
                                 'Total screen time today',
-                                style: Theme.of(context).textTheme.bodySmall
+                                style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(
                                       color: Theme.of(
                                         context,
                                       ).colorScheme.onSurfaceVariant,
+                                      fontWeight: FontWeight.w500,
                                     ),
                               ),
                             ],
@@ -842,70 +881,31 @@ class CozyDashboardScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 12),
-                  // Top apps
-                  ...apps.map(
-                    (app) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Center(
-                              child: Text(
-                                app.appName.isNotEmpty
-                                    ? app.appName[0].toUpperCase()
-                                    : '?',
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              app.appName,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(fontWeight: FontWeight.w500),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              app.formattedUsageTime,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
+                  const SizedBox(height: 24),
+                  Container(
+                    height: 1,
+                    color: Theme.of(
+                      context,
+                    ).dividerColor.withValues(alpha: 0.2),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Top apps list
+                  ...apps.map((app) => _AppUsageItem(appStat: app)),
+
+                  // "Show more" hint if needed, or just padding
+                  if (apps.length >= 5)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Top 5 apps shown',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             );
@@ -1026,6 +1026,63 @@ class CozyDashboardScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AppUsageItem extends StatelessWidget {
+  final AppUsageStat appStat;
+
+  const _AppUsageItem({required this.appStat});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          AppIconWidget(packageName: appStat.packageName, size: 42),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  appStat.appName,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                // Optional: Category or other info could go here
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.1),
+              ),
+            ),
+            child: Text(
+              appStat.formattedUsageTime,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurface,
+                fontFeatures: [const FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

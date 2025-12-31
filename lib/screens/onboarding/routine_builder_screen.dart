@@ -10,16 +10,19 @@ import '../../models/onboarding_data.dart';
 import '../../services/onboarding_storage.dart';
 import '../../widgets/habit_card.dart';
 import '../../widgets/onboarding_button.dart';
+import '../../services/notification_service.dart';
 
 /// Routine builder screen with image card grid.
 class OnboardingRoutineBuilderScreen extends StatefulWidget {
   const OnboardingRoutineBuilderScreen({super.key});
 
   @override
-  State<OnboardingRoutineBuilderScreen> createState() => _OnboardingRoutineBuilderScreenState();
+  State<OnboardingRoutineBuilderScreen> createState() =>
+      _OnboardingRoutineBuilderScreenState();
 }
 
-class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilderScreen> {
+class _OnboardingRoutineBuilderScreenState
+    extends State<OnboardingRoutineBuilderScreen> {
   String _selectedCategory = 'All';
   final Set<String> _selectedHabits = {};
   OnboardingData? _previousData;
@@ -44,16 +47,59 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
   }
 
   void _createPlan() {
+    _askForNotifications();
+  }
+
+  Future<void> _askForNotifications() async {
+    // Check if checks are already enabled
+    final enabled = await NotificationService.instance
+        .areNotificationsEnabled();
+    if (enabled) {
+      _proceedToSignUp();
+      return;
+    }
+
+    if (!mounted) return;
+
+    final shouldEnable = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Stay on Track?'),
+        content: const Text(
+          'Allowing notifications helps Pro Buddy suggest timely interventions based on your goals. We promise not to spam!',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Maybe Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Enable Notifications'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldEnable == true) {
+      await NotificationService.instance.requestPermissions();
+    }
+
+    if (mounted) {
+      _proceedToSignUp();
+    }
+  }
+
+  void _proceedToSignUp() {
     final data = (_previousData ?? OnboardingData()).copyWith(
       selectedHabits: _selectedHabits.toList(),
     );
-    
+
     // Navigate to sign up with all onboarding data
     Navigator.of(context).pushNamed(
       AppRoutes.signUp,
-      arguments: {
-        'onboarding_data': data.toJson(),
-      },
+      arguments: {'onboarding_data': data.toJson()},
     );
   }
 
@@ -62,16 +108,17 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
     if (!mounted) return;
 
     final authStatus = context.read<AuthCubit>().state.status;
-    final targetRoute =
-        authStatus == AuthStatus.authenticated ? AppRoutes.dashboard : AppRoutes.signIn;
+    final targetRoute = authStatus == AuthStatus.authenticated
+        ? AppRoutes.dashboard
+        : AppRoutes.signIn;
 
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      targetRoute,
-      (route) => false,
-    );
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(targetRoute, (route) => false);
   }
 
-  List<Habit> get _filteredHabits => OnboardingHabits.byCategory(_selectedCategory);
+  List<Habit> get _filteredHabits =>
+      OnboardingHabits.byCategory(_selectedCategory);
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +131,7 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 12),
-            
+
             // Top row
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -114,9 +161,9 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Title
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -130,9 +177,9 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
@@ -143,9 +190,9 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Category filters
             SizedBox(
               height: 44,
@@ -166,8 +213,8 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
                         color: isSelected ? Colors.black : Colors.white,
                         borderRadius: BorderRadius.circular(22),
                         border: Border.all(
-                          color: isSelected 
-                              ? Colors.black 
+                          color: isSelected
+                              ? Colors.black
                               : Colors.black.withValues(alpha: 0.15),
                         ),
                       ),
@@ -185,9 +232,9 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
                 },
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Habits grid
             Expanded(
               child: GridView.builder(
@@ -210,12 +257,13 @@ class _OnboardingRoutineBuilderScreenState extends State<OnboardingRoutineBuilde
                 },
               ),
             ),
-            
+
             // Create plan button
             Padding(
               padding: const EdgeInsets.all(24),
               child: OnboardingButton(
-                label: 'Create My Plan${_selectedHabits.isNotEmpty ? ' (${_selectedHabits.length})' : ''}',
+                label:
+                    'Create My Plan${_selectedHabits.isNotEmpty ? ' (${_selectedHabits.length})' : ''}',
                 onPressed: _createPlan,
                 isDark: true,
               ),

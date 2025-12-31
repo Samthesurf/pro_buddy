@@ -8,6 +8,7 @@ import '../core/routes.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
 import '../widgets/theme_switcher.dart';
+import '../widgets/app_icon_widget.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -740,9 +741,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           children: [
                             ListTile(
                               contentPadding: EdgeInsets.zero,
-                              leading: Icon(
-                                Icons.apps_rounded,
-                                color: Theme.of(context).colorScheme.primary,
+                              leading: AppIconWidget(
+                                packageName: appMap['package_name'] ?? '',
+                                size: 40,
                               ),
                               title: Text(
                                 appMap['app_name'] ?? 'Unknown App',
