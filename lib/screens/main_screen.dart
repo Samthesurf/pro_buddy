@@ -10,6 +10,7 @@ import '../core/routes.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
 import 'usage_history_screen.dart';
+import '../services/onboarding_storage.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -26,15 +27,11 @@ class _MainScreenState extends State<MainScreen> {
     // Provide dashboard-specific cubits at this level
     return MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (_) => ProgressStreakCubit()..loadStreak(),
-        ),
+        BlocProvider(create: (_) => ProgressStreakCubit()..loadStreak()),
         BlocProvider(
           create: (_) => OnboardingPreferencesCubit()..loadPreferences(),
         ),
-        BlocProvider(
-          create: (_) => DailyUsageSummaryCubit()..loadSummary(),
-        ),
+        BlocProvider(create: (_) => DailyUsageSummaryCubit()..loadSummary()),
         BlocProvider(
           create: (_) => UsageHistoryCubit()..loadHistory(limit: 20),
         ),
@@ -65,10 +62,14 @@ class _MainScreenContent extends StatelessWidget {
     ];
 
     return BlocListener<AuthCubit, AuthState>(
-      listener: (context, state) {
+      listener: (context, state) async {
         if (state.status == AuthStatus.unauthenticated) {
+          // Check if we should go to onboarding (e.g. account deleted) or just sign in
+          final hasSeenOnboarding = await OnboardingStorage.hasSeenOnboarding();
+          if (!context.mounted) return;
+
           Navigator.of(context).pushNamedAndRemoveUntil(
-            AppRoutes.signIn,
+            hasSeenOnboarding ? AppRoutes.signIn : AppRoutes.onboardingSplash,
             (route) => false,
           );
         }

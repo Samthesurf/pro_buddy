@@ -184,6 +184,21 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
+  Future<void> deleteAccount() async {
+    emit(state.copyWith(isLoading: true));
+    try {
+      await _authService.deleteAccount();
+      // Auth state changes (sign out) will be handled by the stream listener
+    } catch (e) {
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: 'Failed to delete account: $e',
+        ),
+      );
+    }
+  }
+
   String _mapErrorToMessage(dynamic error) {
     if (error is FirebaseAuthException) {
       switch (error.code) {

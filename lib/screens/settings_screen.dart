@@ -878,6 +878,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _showResetAccountDialog();
               },
             ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(
+                Icons.no_accounts_rounded,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                'Delete Account',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: const Text('Permanently delete your account'),
+              onTap: () {
+                _showDeleteAccountDialog();
+              },
+            ),
           ],
         ),
       ),
@@ -918,6 +936,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to reset account: $e'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showDeleteAccountDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            'Delete Account?',
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Are you sure you want to delete your account?',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'This action is irreversible. All your data, goals, and history will be permanently erased.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: const Text('Delete Account'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await context.read<AuthCubit>().deleteAccount();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete account: $e'),
               behavior: SnackBarBehavior.floating,
               backgroundColor: Theme.of(context).colorScheme.error,
             ),

@@ -11,6 +11,7 @@ import '../core/cozy_theme.dart';
 import 'cozy_dashboard_screen.dart';
 import 'settings_screen.dart';
 import 'usage_history_screen.dart';
+import '../services/onboarding_storage.dart';
 
 /// Cozy-themed main screen wrapper that provides the cozy theme context
 class CozyMainScreen extends StatefulWidget {
@@ -66,11 +67,16 @@ class _CozyMainScreenContent extends StatelessWidget {
     ];
 
     return BlocListener<AuthCubit, AuthState>(
-      listener: (context, state) {
+      listener: (context, state) async {
         if (state.status == AuthStatus.unauthenticated) {
-          Navigator.of(
-            context,
-          ).pushNamedAndRemoveUntil(AppRoutes.signIn, (route) => false);
+          // Check if we should go to onboarding (e.g. account deleted) or just sign in
+          final hasSeenOnboarding = await OnboardingStorage.hasSeenOnboarding();
+          if (!context.mounted) return;
+
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            hasSeenOnboarding ? AppRoutes.signIn : AppRoutes.onboardingSplash,
+            (route) => false,
+          );
         }
       },
       child: Scaffold(

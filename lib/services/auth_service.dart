@@ -124,6 +124,28 @@ class AuthService {
     }
   }
 
+  /// Delete account permanently
+  Future<void> deleteAccount() async {
+    try {
+      // 1. Clear backend data
+      try {
+        await ApiService.instance.resetUserAccount();
+      } catch (e) {
+        debugPrint('Warning: Failed to clear backend data: $e');
+        // Proceed to delete Firebase account anyway
+      }
+
+      // 2. Clear local storage
+      await OnboardingStorage.clearOnboardingState();
+
+      // 3. Delete Firebase user
+      await _auth.currentUser?.delete();
+    } catch (e) {
+      debugPrint('Error deleting account: $e');
+      rethrow;
+    }
+  }
+
   /// Sync user with backend
   Future<void> _syncWithBackend() async {
     try {
