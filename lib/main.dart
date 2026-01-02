@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'firebase_options.dart';
 
 import 'bloc/auth_cubit.dart';
@@ -128,7 +129,10 @@ class _ProBuddyAppState extends State<ProBuddyApp> with WidgetsBindingObserver {
           home: const AuthWrapper(),
 
           // Track route changes for restoration
-          navigatorObservers: [RestorationRouteObserver()],
+          navigatorObservers: [
+            RestorationRouteObserver(),
+            FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
+          ],
         );
       },
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import '../bloc/auth_cubit.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
@@ -200,6 +201,13 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
           ),
         );
       } else {
+        await FirebaseAnalytics.instance.logEvent(
+          name: 'onboarding_completed',
+          parameters: {
+            'selected_apps_count': selectedAppsData.length,
+          },
+        );
+
         // Coming from onboarding - complete onboarding and navigate to dashboard
         // 3. Complete Onboarding
         await ApiService.instance.completeOnboarding();

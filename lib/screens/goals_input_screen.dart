@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../core/constants.dart';
 import '../core/routes.dart';
@@ -99,6 +100,16 @@ class _GoalsInputScreenState extends State<GoalsInputScreen> {
   }
 
   Future<void> _saveGoals() async {
+    await FirebaseAnalytics.instance.logEvent(
+      name: 'initial_goals_set',
+      parameters: {
+        'goal_length': _goalController.text.length,
+        'has_timeline': _timelineController.text.isNotEmpty.toString(),
+      },
+    );
+
+    if (!mounted) return;
+
     // Navigate to Auth screen, passing goals as arguments
     Navigator.of(context).pushNamed(
       AppRoutes.signUp, // We direct to Sign Up flow

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../bloc/goal_discovery_cubit.dart';
 import '../core/routes.dart';
@@ -98,6 +99,14 @@ class _GoalDiscoveryScreenState extends State<GoalDiscoveryScreen> {
         if (state.done && !_didCacheProfile && state.profile != null) {
           NotificationCache.saveNotificationProfile(state.profile!);
           _didCacheProfile = true;
+          
+          FirebaseAnalytics.instance.logEvent(
+            name: 'goal_discovery_completed',
+            parameters: {
+              'has_profile': 'true',
+              'primary_goal': state.profile?.primaryGoal ?? 'unknown',
+            },
+          );
         }
 
         if (_fromOnboarding &&
