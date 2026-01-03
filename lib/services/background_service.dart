@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'api_service.dart';
@@ -72,7 +73,11 @@ void backgroundTaskCallback() {
       debugPrint('Background task started: $taskName');
 
       if (taskName == usageCheckTask || taskName == periodicUsageCheckTask) {
-        await _performUsageCheck();
+        // Run both checks
+        await Future.wait([
+          _performUsageCheck(),
+          _checkDailyReminder(),
+        ]);
       }
 
       return true;
@@ -81,6 +86,34 @@ void backgroundTaskCallback() {
       return false;
     }
   });
+}
+
+/// Check if we need to send a daily reminder (after 8 PM)
+Future<void> _checkDailyReminder() async {
+  try {
+    final now = DateTime.now();
+    // Target time: 8:00 PM (20:00)
+    if (now.hour < 20) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    const key = 'last_check_in_reminder_date';
+    final lastDateStr = prefs.getString(key);
+    
+    final todayStr = "${now.year}-${now.month}-${now.day}";
+    
+    if (lastDateStr == todayStr) {
+      return; // Already sent today
+    }
+
+    // Initialize notification service
+    await NotificationService.instance.initialize();
+    await NotificationService.instance.showCheckInReminder();
+
+    await prefs.setString(key, todayStr);
+    debugPrint('Daily check-in reminder sent');
+  } catch (e) {
+    debugPrint('Error in daily reminder check: $e');
+  }
 }
 
 /// Perform the actual usage check logic
