@@ -24,6 +24,8 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     // Provide dashboard-specific cubits at this level
     return MultiBlocProvider(
       providers: [
@@ -39,8 +41,10 @@ class _MainScreenState extends State<MainScreen> {
       child: NavigationShell(
         currentIndex: _currentIndex,
         onIndexChanged: (index) => setState(() => _currentIndex = index),
-        backgroundColor: CozyColors.surface,
-        indicatorColor: CozyColors.navigationIndicator,
+        // In light mode, enforce the 'Elegant Brown' cozy aesthetic.
+        // In dark mode, let the theme handle it (null) to avoid a white bar.
+        backgroundColor: isDark ? null : CozyColors.surface,
+        indicatorColor: isDark ? null : CozyColors.navigationIndicator,
         screens: const [DashboardScreen(), GoalsScreen(), SettingsScreen()],
       ),
     );
