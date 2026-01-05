@@ -4,6 +4,7 @@ Goal-aligned productivity companion. A Flutter app plus FastAPI backend that hel
 
 ## Key Features
 - **Goal Discovery:** Interactive chat interface to help you articulate and refine your productivity goals.
+- **Goal Journey:** AI-powered goal decomposition into actionable steps with visual progress tracking, ETA calculations, and milestone celebrations.
 - **Smart Dashboard:** "Cozy" styled dashboard that shows your focus score, streak, and daily alignment.
 - **App Alignment:** Categorizes your app usage as "Focused", "Break", or "Distracted" based on your goals.
 - **AI Coaching:** Chat with an AI companion for encouragement, feedback, and daily summaries.
@@ -11,12 +12,14 @@ Goal-aligned productivity companion. A Flutter app plus FastAPI backend that hel
 
 ## Project Structure
 - `lib/`: Flutter application using Bloc for state management.
-    - `screens/`: Fully implemented screens include Auth, Goal Discovery, App Selection, and the Main Dashboard.
-    - `bloc/`: Business logic for goals, usage tracking, and chat.
+    - `screens/`: Fully implemented screens include Auth, Goal Discovery, App Selection, Main Dashboard, and Goal Journey.
+    - `bloc/`: Business logic for goals, usage tracking, chat, and goal journeys.
+    - `widgets/journey/`: Animated journey visualization components including path nodes, step markers, and celebration effects.
 - `backend/`: FastAPI service.
     - Handles authentication (Firebase).
     - Manages user goals and app categorization.
     - Powers the AI chat using Google Gemini.
+    - Generates goal journeys with AI-powered step decomposition.
     - Uses Cloudflare Vectorize for semantic understanding of goals.
     - Persists all data via Cloudflare Worker + D1 database (see `backend/cloudflare/usage-store-worker/`).
 - `conductor/`: Project management and architectural documentation.
@@ -55,10 +58,10 @@ Goal-aligned productivity companion. A Flutter app plus FastAPI backend that hel
     ```
 
 ## Current Status
--   **Frontend:** Core flows (Onboarding, Goal Discovery, Dashboard) are implemented and functional. Usage history and settings are currently placeholders.
--   **Backend:** Fully functional for the implemented frontend features.
+-   **Frontend:** Core flows (Onboarding, Goal Discovery, Dashboard, Goal Journey) are implemented and functional. Settings are currently placeholders.
+-   **Backend:** Fully functional for the implemented frontend features, including AI-powered journey generation.
 -   **Persistence:** All user data is persisted in **Cloudflare D1** via a Cloudflare Worker.
-    -   User profiles, goals, app selections, notification profiles, usage feedback, progress scores, and cooldown states are stored persistently.
+    -   User profiles, goals, app selections, notification profiles, usage feedback, progress scores, cooldown states, and goal journeys are stored persistently.
     -   In-memory caching is used for performance, with write-through to D1.
     -   See `backend/cloudflare/usage-store-worker/` for the Worker implementation and D1 schema.
 
@@ -86,5 +89,6 @@ All user data is persisted via a **Cloudflare Worker + D1 database**.
 -   Progress scores and streaks
 -   Notification cooldown states
 -   App use cases cache
+-   Goal journeys and step progress
 
 For setup and deployment details, see `backend/cloudflare/usage-store-worker/README.md`.
