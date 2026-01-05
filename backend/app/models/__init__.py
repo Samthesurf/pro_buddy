@@ -22,6 +22,20 @@ from .progress_score import (
     ProgressScoreItem,
     ProgressScoreMessage,
 )
+from .goal_journey import (
+    GoalJourney,
+    GoalStep,
+    StepStatus,
+    PathType,
+    MapPosition,
+    JourneyGenerateRequest,
+    JourneyGenerateResponse,
+    JourneyAdjustmentRequest,
+    JourneyAdjustmentResponse,
+    StepStatusUpdate,
+    StepTitleUpdate,
+    StepNoteAdd,
+)
 
 __all__ = [
     # User
@@ -50,4 +64,17 @@ __all__ = [
     "ProgressScoreItem",
     "FinalizeTodayProgressResponse",
     "LatestProgressScoreResponse",
+    # Goal Journey
+    "GoalJourney",
+    "GoalStep",
+    "StepStatus",
+    "PathType",
+    "MapPosition",
+    "JourneyGenerateRequest",
+    "JourneyGenerateResponse",
+    "JourneyAdjustmentRequest",
+    "JourneyAdjustmentResponse",
+    "StepStatusUpdate",
+    "StepTitleUpdate",
+    "StepNoteAdd",
 ]

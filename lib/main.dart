@@ -8,6 +8,7 @@ import 'firebase_options.dart';
 import 'bloc/auth_cubit.dart';
 import 'bloc/auth_state.dart';
 import 'bloc/chat_cubit.dart';
+import 'bloc/goal_journey_cubit.dart';
 import 'bloc/progress_score_cubit.dart';
 import 'bloc/theme_cubit.dart';
 import 'core/core.dart';
@@ -16,6 +17,7 @@ import 'services/restoration_service.dart';
 import 'services/restoration_route_observer.dart';
 import 'services/notification_service.dart';
 import 'services/background_service.dart';
+import 'services/daily_progress_updater.dart';
 
 /// Global navigator key for notification navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -45,8 +47,11 @@ Future<void> main() async {
         BlocProvider(create: (_) => AuthCubit()),
         BlocProvider(create: (_) => ChatCubit()),
         BlocProvider(create: (_) => ProgressScoreCubit()..loadLatest()),
+        BlocProvider(create: (_) => GoalJourneyCubit()..loadJourney()),
       ],
-      child: const ProBuddyApp(),
+      child: const DailyProgressListener(
+        child: ProBuddyApp(),
+      ),
     ),
   );
 }

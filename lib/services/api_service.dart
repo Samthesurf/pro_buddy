@@ -375,6 +375,114 @@ class ApiService {
     'Creativity',
     'Finance',
   ];
+
+  // ==================== Goal Journey Endpoints ====================
+
+  /// Generate a new journey from a goal
+  Future<Map<String, dynamic>> generateJourney({
+    required String goalContent,
+    String? goalReason,
+    String? goalId,
+    String? identity,
+    List<String>? challenges,
+  }) async {
+    final response = await _dio.post(
+      '/journey/generate',
+      data: {
+        'goal_content': goalContent,
+        if (goalReason != null) 'goal_reason': goalReason,
+        if (goalId != null) 'goal_id': goalId,
+        if (identity != null) 'identity': identity,
+        if (challenges != null) 'challenges': challenges,
+      },
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Get the user's current active journey
+  Future<Map<String, dynamic>?> getCurrentJourney() async {
+    try {
+      final response = await _dio.get('/journey');
+      if (response.data == null) return null;
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      print('[ApiService] No current journey found: $e');
+      return null;
+    }
+  }
+
+  /// Get a specific journey by ID
+  Future<Map<String, dynamic>> getJourney(String journeyId) async {
+    final response = await _dio.get('/journey/$journeyId');
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Delete a journey
+  Future<void> deleteJourney(String journeyId) async {
+    await _dio.delete('/journey/$journeyId');
+  }
+
+  /// Update step status
+  Future<Map<String, dynamic>> updateStepStatus({
+    required String stepId,
+    required String status,
+    String? notes,
+  }) async {
+    final response = await _dio.put(
+      '/journey/steps/$stepId/status',
+      data: {'status': status, if (notes != null) 'notes': notes},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Update step custom title
+  Future<Map<String, dynamic>> updateStepTitle({
+    required String stepId,
+    required String customTitle,
+  }) async {
+    final response = await _dio.put(
+      '/journey/steps/$stepId/title',
+      data: {'custom_title': customTitle},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Add a note to a step
+  Future<Map<String, dynamic>> addStepNote({
+    required String stepId,
+    required String note,
+  }) async {
+    final response = await _dio.post(
+      '/journey/steps/$stepId/notes',
+      data: {'note': note},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Adjust journey based on current activity (AI-powered)
+  Future<Map<String, dynamic>> adjustJourney({
+    required String journeyId,
+    required String currentActivity,
+    String? additionalContext,
+  }) async {
+    final response = await _dio.post(
+      '/journey/adjust',
+      data: {
+        'journey_id': journeyId,
+        'current_activity': currentActivity,
+        if (additionalContext != null) 'additional_context': additionalContext,
+      },
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Recalculate journey progress
+  Future<Map<String, dynamic>> recalculateJourneyProgress(
+    String journeyId,
+  ) async {
+    final response = await _dio.post('/journey/$journeyId/recalculate');
+    return response.data as Map<String, dynamic>;
+  }
 }
 
 /// Interceptor to add Firebase auth token to requests

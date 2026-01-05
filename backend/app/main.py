@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import auth, onboarding, monitor, chat, apps
+from .routers import auth, onboarding, monitor, chat, apps, goal_journey
 from .services.cloudflare_service import CloudflareVectorizeService
 from .services.gemini_service import GeminiService
 
@@ -79,6 +79,11 @@ def create_app() -> FastAPI:
         apps.router,
         prefix="/api/v1/apps",
         tags=["Apps"],
+    )
+    app.include_router(
+        goal_journey.router,
+        prefix="/api/v1/journey",
+        tags=["Goal Journey"],
     )
 
     @app.get("/", tags=["Health"])
