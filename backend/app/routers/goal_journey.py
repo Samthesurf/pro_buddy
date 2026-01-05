@@ -84,7 +84,7 @@ def _update_journey_progress(journey: GoalJourney) -> GoalJourney:
 @router.post("/generate", response_model=JourneyGenerateResponse)
 async def generate_journey(
     request: JourneyGenerateRequest,
-    user_id: str = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Generate a new journey from a goal.
@@ -92,6 +92,7 @@ async def generate_journey(
     This creates an AI-powered step-by-step journey to achieve the goal.
     """
     try:
+        user_id = current_user["uid"]
         generator = get_journey_generator()
         
         journey = await generator.generate_journey(
@@ -118,9 +119,10 @@ async def generate_journey(
 
 @router.get("", response_model=Optional[GoalJourney])
 async def get_current_journey(
-    user_id: str = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get the user's current active journey."""
+    user_id = current_user["uid"]
     journey = _get_user_journey(user_id)
     return journey
 
@@ -128,9 +130,10 @@ async def get_current_journey(
 @router.get("/{journey_id}", response_model=GoalJourney)
 async def get_journey(
     journey_id: str,
-    user_id: str = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get a specific journey by ID."""
+    user_id = current_user["uid"]
     journey = _journeys_store.get(journey_id)
     
     if not journey:
@@ -145,9 +148,10 @@ async def get_journey(
 @router.delete("/{journey_id}")
 async def delete_journey(
     journey_id: str,
-    user_id: str = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Delete a journey."""
+    user_id = current_user["uid"]
     journey = _journeys_store.get(journey_id)
     
     if not journey:
@@ -173,13 +177,14 @@ async def delete_journey(
 async def update_step_status(
     step_id: str,
     update: StepStatusUpdate,
-    user_id: str = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Update the status of a step.
     
     When a step is completed, the next step becomes available.
     """
+    user_id = current_user["uid"]
     step = _steps_store.get(step_id)
     if not step:
         raise HTTPException(status_code=404, detail="Step not found")
@@ -252,9 +257,10 @@ async def update_step_status(
 async def update_step_title(
     step_id: str,
     update: StepTitleUpdate,
-    user_id: str = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Update the custom title of a step."""
+    user_id = current_user["uid"]
     step = _steps_store.get(step_id)
     if not step:
         raise HTTPException(status_code=404, detail="Step not found")
@@ -285,9 +291,10 @@ async def update_step_title(
 async def add_step_note(
     step_id: str,
     note_request: StepNoteAdd,
-    user_id: str = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Add a note to a step."""
+    user_id = current_user["uid"]
     step = _steps_store.get(step_id)
     if not step:
         raise HTTPException(status_code=404, detail="Step not found")
@@ -322,13 +329,14 @@ async def add_step_note(
 @router.post("/adjust", response_model=JourneyAdjustmentResponse)
 async def adjust_journey(
     request: JourneyAdjustmentRequest,
-    user_id: str = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Adjust the journey based on user's current activity.
     
     The AI analyzes what the user is doing and suggests path adjustments.
     """
+    user_id = current_user["uid"]
     journey = _journeys_store.get(request.journey_id)
     
     if not journey:
@@ -358,13 +366,14 @@ async def adjust_journey(
 @router.post("/{journey_id}/recalculate")
 async def recalculate_journey(
     journey_id: str,
-    user_id: str = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Recalculate journey progress based on current step statuses.
     
     Useful after manual edits or syncing with daily progress.
     """
+    user_id = current_user["uid"]
     journey = _journeys_store.get(journey_id)
     
     if not journey:
