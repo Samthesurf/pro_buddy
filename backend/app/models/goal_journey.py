@@ -80,8 +80,9 @@ class GoalStep(GoalStepBase):
         """Whether this step is on the main journey path."""
         return self.path_type in (PathType.MAIN, PathType.COMPLETED)
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+    }
 
 
 class GoalJourneyCreate(BaseModel):
@@ -155,8 +156,9 @@ class GoalJourney(BaseModel):
         """Is journey complete?"""
         return self.overall_progress >= 1.0 or len(self.remaining_steps) == 0
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+    }
 
 
 class JourneyAdjustmentRequest(BaseModel):

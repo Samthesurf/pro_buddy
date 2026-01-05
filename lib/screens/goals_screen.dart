@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/goal_journey_cubit.dart';
+import '../core/routes.dart';
 import '../core/semantic_colors.dart';
 import '../models/goal_journey.dart';
+import '../services/api_service.dart';
 import '../widgets/goal_adjustment_sheet.dart';
 import '../widgets/goal_progress_dialog.dart';
 import 'goal_journey_screen.dart';
@@ -501,66 +503,201 @@ class _GoalsScreenContent extends StatelessWidget {
   }
 
   void _showGoalConfirmationDialog(BuildContext context) async {
-    final goalController = TextEditingController();
-    final reasonController = TextEditingController();
-
-    final result = await showDialog<bool>(
+    // Show loading indicator
+    showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Row(children: [Text('🎯 '), Text('Your Main Goal')]),
-        content: SingleChildScrollView(
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    Map<String, dynamic>? profileData;
+    String? error;
+
+    try {
+      // Load the goal from the API (same as settings screen)
+      profileData = await ApiService.instance.getNotificationProfile();
+
+      // Handle potential nesting of profile data (like settings_screen.dart does)
+      if (profileData.containsKey('profile') && profileData['profile'] is Map) {
+        profileData = Map<String, dynamic>.from(profileData['profile'] as Map);
+      }
+    } catch (e) {
+      error = e.toString();
+    }
+
+    if (!context.mounted) return;
+
+    // Dismiss loading indicator
+    Navigator.of(context).pop();
+
+    if (error != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load goal: $error')));
+      return;
+    }
+
+    // Try both snake_case and camelCase (like settings screen does)
+    final primaryGoal =
+        (profileData?['primary_goal'] as String?) ??
+        (profileData?['primaryGoal'] as String?);
+    final why =
+        (profileData?['why'] as String?) ?? (profileData?['reason'] as String?);
+
+    // If no profile or goal exists, redirect to goal discovery
+    if (primaryGoal == null || primaryGoal.trim().isEmpty) {
+      final shouldGoToDiscovery = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(children: [Text('🎯 '), Text('Set Your Goal')]),
+          content: const Text(
+            'You haven\'t set a goal yet during onboarding. '
+            'Would you like to go through the goal discovery process?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Set My Goal'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldGoToDiscovery == true && context.mounted) {
+        Navigator.of(context).pushNamed(AppRoutes.goalDiscovery);
+      }
+      return;
+    }
+
+    final theme = Theme.of(context);
+    final goalContent = primaryGoal;
+    final goalReason = why;
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'What goal do you want to achieve?',
-                style: TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: goalController,
-                decoration: const InputDecoration(
-                  hintText: 'e.g., Become a Software Engineer',
-                  border: OutlineInputBorder(),
+              // Header
+              Text(
+                '🎯 Your Main Goal',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-                maxLines: 2,
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: reasonController,
-                decoration: const InputDecoration(
-                  hintText: 'Why is this important to you? (optional)',
-                  border: OutlineInputBorder(),
+              const SizedBox(height: 24),
+
+              // Goal Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      theme.primaryColor.withValues(alpha: 0.1),
+                      theme.colorScheme.secondary.withValues(alpha: 0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.primaryColor.withValues(alpha: 0.3),
+                    width: 2,
+                  ),
                 ),
-                maxLines: 2,
+                child: Column(
+                  children: [
+                    // Goal text
+                    Text(
+                      goalContent,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+
+                    // Reason (if exists)
+                    if (goalReason != null && goalReason.trim().isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Divider(color: theme.dividerColor),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Because $goalReason',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontStyle: FontStyle.italic,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Buttons Row
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () =>
+                          Navigator.of(dialogContext).pop('change'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Change'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () =>
+                          Navigator.of(dialogContext).pop('proceed'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Start Journey'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Start Journey'),
-          ),
-        ],
       ),
     );
 
-    if (result == true && goalController.text.trim().isNotEmpty) {
-      if (!context.mounted) return;
+    if (!context.mounted) return;
+
+    if (result == 'change') {
+      // Navigate to goal discovery to set a new goal
+      Navigator.of(context).pushNamed(AppRoutes.goalDiscovery);
+    } else if (result == 'proceed') {
+      // Generate journey with the goal from onboarding
       context.read<GoalJourneyCubit>().generateJourney(
-        goalContent: goalController.text.trim(),
-        goalReason: reasonController.text.trim().isEmpty
-            ? null
-            : reasonController.text.trim(),
+        goalContent: goalContent,
+        goalReason: goalReason,
       );
     }
   }
-
 
   void _showJourneyOptions(BuildContext context) {
     final theme = Theme.of(context);
@@ -622,8 +759,6 @@ class _GoalsScreenContent extends StatelessWidget {
       ),
     );
   }
-
-
 }
 
 /// Empty state widget for when no journey exists

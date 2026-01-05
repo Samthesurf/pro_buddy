@@ -4,6 +4,7 @@ import '../bloc/progress_streak_cubit.dart';
 import '../bloc/onboarding_preferences_cubit.dart';
 import '../bloc/daily_usage_summary_cubit.dart';
 import '../bloc/usage_history_cubit.dart';
+import '../core/cozy_theme.dart';
 import '../widgets/navigation_shell.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
@@ -38,6 +39,8 @@ class _MainScreenState extends State<MainScreen> {
       child: NavigationShell(
         currentIndex: _currentIndex,
         onIndexChanged: (index) => setState(() => _currentIndex = index),
+        backgroundColor: CozyColors.surface,
+        indicatorColor: CozyColors.navigationIndicator,
         screens: const [DashboardScreen(), GoalsScreen(), SettingsScreen()],
       ),
     );

@@ -12,6 +12,7 @@ class CozyColors {
   static const Color primary = Color(0xFFD4915C); // Warm amber
   static const Color primaryLight = Color(0xFFE8B88C); // Light golden
   static const Color primaryDark = Color(0xFFB87333); // Deep copper
+  static const Color navigationIndicator = Color(0xFFAD7F51); // Elegant brown
 
   // Secondary/Accent - Deep Navy Blue (like the mug and plant pot)
   static const Color accent = Color(0xFF2D3B54); // Deep navy
@@ -171,9 +172,8 @@ class CozyTheme {
       colorScheme: const ColorScheme.light(
         primary: CozyColors.primary,
         onPrimary: Colors.white,
-        primaryContainer: Color(
-          0xFFAD7F51,
-        ), // Darker brown for navigation indicator
+        primaryContainer: CozyColors
+            .navigationIndicator, // Darker brown for navigation indicator
         onPrimaryContainer: Colors.white,
         secondary: CozyColors.accent,
         onSecondary: Colors.white,
@@ -291,6 +291,29 @@ class CozyTheme {
         elevation: 0,
         showSelectedLabels: true,
         showUnselectedLabels: true,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: CozyColors.surface,
+        indicatorColor: CozyColors.navigationIndicator,
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: Colors.white);
+          }
+          return const IconThemeData(color: CozyColors.onSurfaceVariant);
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return CozyTypography.labelMedium.copyWith(
+              color: CozyColors.onSurface,
+              fontWeight: FontWeight.w600,
+            );
+          }
+          return CozyTypography.labelMedium.copyWith(
+            color: CozyColors.onSurfaceVariant,
+          );
+        }),
+        elevation: 0,
+        height: 80,
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: CozyColors.accent,

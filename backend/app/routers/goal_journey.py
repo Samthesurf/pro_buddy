@@ -91,23 +91,29 @@ async def generate_journey(
     
     This creates an AI-powered step-by-step journey to achieve the goal.
     """
-    generator = get_journey_generator()
-    
-    journey = await generator.generate_journey(
-        user_id=user_id,
-        goal_content=request.goal_content,
-        goal_reason=request.goal_reason,
-        goal_id=request.goal_id,
-        identity=request.identity,
-        challenges=request.challenges,
-    )
-    
-    _save_journey(journey)
-    
-    return JourneyGenerateResponse(
-        journey=journey,
-        ai_message=journey.ai_notes or "Your journey has been created! Let's get started.",
-    )
+    try:
+        generator = get_journey_generator()
+        
+        journey = await generator.generate_journey(
+            user_id=user_id,
+            goal_content=request.goal_content,
+            goal_reason=request.goal_reason,
+            goal_id=request.goal_id,
+            identity=request.identity,
+            challenges=request.challenges,
+        )
+        
+        _save_journey(journey)
+        
+        return JourneyGenerateResponse(
+            journey=journey,
+            ai_message=journey.ai_notes or "Your journey has been created! Let's get started.",
+        )
+    except Exception as e:
+        print(f"[goal_journey] Error in generate_journey endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to generate journey: {str(e)}")
 
 
 @router.get("", response_model=Optional[GoalJourney])

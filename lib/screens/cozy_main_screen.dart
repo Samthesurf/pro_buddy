@@ -42,7 +42,7 @@ class _CozyMainScreenState extends State<CozyMainScreen> {
           currentIndex: _currentIndex,
           onIndexChanged: (index) => setState(() => _currentIndex = index),
           backgroundColor: CozyColors.surface,
-          indicatorColor: CozyColors.primaryLight.withValues(alpha: 0.3),
+          indicatorColor: CozyColors.navigationIndicator,
           screens: const [
             CozyDashboardScreen(),
             GoalsScreen(),
