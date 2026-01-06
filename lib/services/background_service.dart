@@ -24,10 +24,18 @@ class BackgroundService {
   bool _initialized = false;
 
   /// Initialize WorkManager and register background tasks
+  /// This automatically registers the periodic usage check task
   Future<void> initialize() async {
     if (_initialized) return;
 
-    await Workmanager().initialize(backgroundTaskCallback);
+    await Workmanager().initialize(
+      backgroundTaskCallback,
+      isInDebugMode: false, // Set to true for debug logs
+    );
+
+    // Always register the periodic task on app start
+    // WorkManager will handle deduplication with ExistingPeriodicWorkPolicy.keep
+    await registerPeriodicUsageCheck();
 
     _initialized = true;
   }
@@ -74,10 +82,7 @@ void backgroundTaskCallback() {
 
       if (taskName == usageCheckTask || taskName == periodicUsageCheckTask) {
         // Run both checks
-        await Future.wait([
-          _performUsageCheck(),
-          _checkDailyReminder(),
-        ]);
+        await Future.wait([_performUsageCheck(), _checkDailyReminder()]);
       }
 
       return true;
@@ -98,9 +103,9 @@ Future<void> _checkDailyReminder() async {
     final prefs = await SharedPreferences.getInstance();
     const key = 'last_check_in_reminder_date';
     final lastDateStr = prefs.getString(key);
-    
+
     final todayStr = "${now.year}-${now.month}-${now.day}";
-    
+
     if (lastDateStr == todayStr) {
       return; // Already sent today
     }

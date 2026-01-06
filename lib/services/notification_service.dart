@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 /// Notification payload types
 enum NotificationType {
@@ -86,6 +89,9 @@ class NotificationService {
     }
 
     _onTapCallback = onTap;
+
+    // Initialize timezone data for scheduled notifications
+    tz.initializeTimeZones();
 
     // Android initialization
     const androidSettings = AndroidInitializationSettings(
@@ -286,6 +292,99 @@ class NotificationService {
       _onTapCallback!(payload);
     }
   }
+
+  /// Schedule a daily check-in reminder at a specific time
+  /// This will trigger even if the app hasn't been opened that day
+  Future<void> scheduleDailyReminder({
+    required int hour,
+    required int minute,
+    String? customMessage,
+  }) async {
+    final payload = NotificationPayload(
+      type: NotificationType.checkIn,
+      message: customMessage,
+    );
+
+    final androidDetails = AndroidNotificationDetails(
+      _checkInChannelId,
+      'Check-in Reminders',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      styleInformation: BigTextStyleInformation(
+        customMessage ??
+            'Take a moment to log what you\'ve accomplished today.',
+      ),
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    // Calculate the next occurrence of the scheduled time
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduledDate = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
+
+    // If the time has passed today, schedule for tomorrow
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    await _plugin.zonedSchedule(
+      _dailyReminderNotificationId,
+      'How\'s your day going? 📝',
+      customMessage ?? 'Take a moment to log what you\'ve accomplished today.',
+      scheduledDate,
+      details,
+      payload: payload.encode(),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time, // Repeats daily!
+    );
+
+    // Save the scheduled time for reference
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('daily_reminder_hour', hour);
+    await prefs.setInt('daily_reminder_minute', minute);
+
+    debugPrint('Daily reminder scheduled for $hour:$minute');
+  }
+
+  /// Cancel the scheduled daily reminder
+  Future<void> cancelDailyReminder() async {
+    await _plugin.cancel(_dailyReminderNotificationId);
+    debugPrint('Daily reminder cancelled');
+  }
+
+  /// Check if daily reminder is scheduled and reschedule if needed
+  /// This should be called on app start to ensure notifications persist
+  Future<void> ensureDailyReminderScheduled() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hour = prefs.getInt('daily_reminder_hour');
+    final minute = prefs.getInt('daily_reminder_minute');
+
+    if (hour != null && minute != null) {
+      await scheduleDailyReminder(hour: hour, minute: minute);
+    }
+  }
+
+  /// Notification ID for daily reminder (constant so we can update/cancel it)
+  static const _dailyReminderNotificationId = 999;
 
   /// Cancel a specific notification
   Future<void> cancel(int id) async {

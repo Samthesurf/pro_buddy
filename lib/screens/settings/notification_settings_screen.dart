@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification_service.dart';
 import '../../services/notification_content.dart';
 import '../../services/api_service.dart';
@@ -18,6 +19,10 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
   bool _isLoading = true;
   String? _checkInFrequency;
   String? _notificationStyle;
+  TimeOfDay _reminderTime = const TimeOfDay(
+    hour: 20,
+    minute: 0,
+  ); // Default 8 PM
 
   // Available frequencies
   final List<String> _frequencies = ['Daily', 'Weekdays', 'Weekends', 'Never'];
@@ -55,12 +60,18 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
       final freq = await NotificationCache.loadCheckInFrequency();
       final profile = await NotificationCache.loadNotificationProfile();
 
+      // Load saved reminder time
+      final prefs = await SharedPreferences.getInstance();
+      final hour = prefs.getInt('daily_reminder_hour') ?? 20;
+      final minute = prefs.getInt('daily_reminder_minute') ?? 0;
+
       if (mounted) {
         setState(() {
           _checkInFrequency = freq;
           if (profile != null) {
             _notificationStyle = profile.style;
           }
+          _reminderTime = TimeOfDay(hour: hour, minute: minute);
           _isLoading = false;
         });
       }
@@ -158,6 +169,38 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     if (newValue == null) return;
     setState(() => _checkInFrequency = newValue);
     await NotificationCache.saveCheckInFrequency(newValue);
+
+    // Schedule or cancel daily reminder based on frequency
+    if (newValue == 'Never') {
+      // Cancel the scheduled daily reminder
+      await NotificationService.instance.cancelDailyReminder();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Daily reminders disabled'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else if (newValue == 'Daily' ||
+        newValue == 'Weekdays' ||
+        newValue == 'Weekends') {
+      // Schedule the daily reminder with current time setting
+      await NotificationService.instance.scheduleDailyReminder(
+        hour: _reminderTime.hour,
+        minute: _reminderTime.minute,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Daily reminder scheduled for ${_reminderTime.format(context)}',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _updateStyle(String? newValue) async {
@@ -258,6 +301,23 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
               ),
             ),
             ListTile(
+              leading: const Icon(Icons.access_time),
+              title: const Text('Daily Reminder Time'),
+              subtitle: Text(
+                'Currently set to ${_reminderTime.format(context)}',
+              ),
+              trailing: TextButton(
+                onPressed: _selectReminderTime,
+                child: Text(
+                  'Set Time',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            ListTile(
               leading: const Icon(Icons.style),
               title: const Text('Notification Style'),
               subtitle: const Text('Tone of voice for messages'),
@@ -275,5 +335,35 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _selectReminderTime() async {
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: _reminderTime,
+      helpText: 'Select daily reminder time',
+    );
+
+    if (pickedTime != null && mounted) {
+      setState(() => _reminderTime = pickedTime);
+
+      // Schedule the daily reminder with the new time
+      // This uses zonedSchedule which persists even after reboot
+      await NotificationService.instance.scheduleDailyReminder(
+        hour: pickedTime.hour,
+        minute: pickedTime.minute,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Daily reminder set for ${pickedTime.format(context)}',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }

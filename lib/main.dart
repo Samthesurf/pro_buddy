@@ -37,7 +37,10 @@ Future<void> main() async {
   // Initialize notification service with tap handler
   await NotificationService.instance.initialize(onTap: _handleNotificationTap);
 
-  // Initialize background service
+  // Ensure scheduled notifications are re-registered (important after device reboot)
+  await NotificationService.instance.ensureDailyReminderScheduled();
+
+  // Initialize background service (also registers periodic tasks)
   await BackgroundService.instance.initialize();
 
   runApp(
@@ -49,9 +52,7 @@ Future<void> main() async {
         BlocProvider(create: (_) => ProgressScoreCubit()..loadLatest()),
         BlocProvider(create: (_) => GoalJourneyCubit()..loadJourney()),
       ],
-      child: const DailyProgressListener(
-        child: ProBuddyApp(),
-      ),
+      child: const DailyProgressListener(child: ProBuddyApp()),
     ),
   );
 }
