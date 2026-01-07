@@ -1,0 +1,198 @@
+name: Semantic Version Bump
+
+on:
+  push:
+    branches:
+      - main
+    # Don't run on version bump commits to avoid infinite loops
+    paths-ignore:
+      - '.github/workflows/**'
+
+# Ensure only one version bump runs at a time
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    # Skip if commit message contains [skip ci] or is from the bot
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[version bump]')"
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Analyze commit and determine version bump
+        id: analyze
+        run: |
+          # Get commit message
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          echo "Commit message: $COMMIT_MSG"
+          
+          # Determine bump type based on conventional commits
+          # Priority: BREAKING > feat > fix/others
+          BUMP_TYPE="patch"
+          BUMP_EMOJI="🐛"
+          BUMP_LABEL="fix"
+          
+          # Check for BREAKING CHANGE (major bump)
+          if echo "$COMMIT_MSG" | grep -qiE "(BREAKING CHANGE|BREAKING:|\!:)"; then
+            BUMP_TYPE="major"
+            BUMP_EMOJI="💥"
+            BUMP_LABEL="BREAKING CHANGE"
+          # Check for feat: (minor bump)
+          elif echo "$COMMIT_MSG" | grep -qiE "^feat(\(.+\))?:"; then
+            BUMP_TYPE="minor"
+            BUMP_EMOJI="✨"
+            BUMP_LABEL="feature"
+          # Check for fix: (patch bump)
+          elif echo "$COMMIT_MSG" | grep -qiE "^fix(\(.+\))?:"; then
+            BUMP_TYPE="patch"
+            BUMP_EMOJI="🐛"
+            BUMP_LABEL="fix"
+          # Check for perf: (patch bump)
+          elif echo "$COMMIT_MSG" | grep -qiE "^perf(\(.+\))?:"; then
+            BUMP_TYPE="patch"
+            BUMP_EMOJI="⚡"
+            BUMP_LABEL="performance"
+          # Check for refactor: (patch bump)
+          elif echo "$COMMIT_MSG" | grep -qiE "^refactor(\(.+\))?:"; then
+            BUMP_TYPE="patch"
+            BUMP_EMOJI="♻️"
+            BUMP_LABEL="refactor"
+          # Check for docs: (no version bump, just build)
+          elif echo "$COMMIT_MSG" | grep -qiE "^docs(\(.+\))?:"; then
+            BUMP_TYPE="build"
+            BUMP_EMOJI="📚"
+            BUMP_LABEL="docs"
+          # Check for style: (no version bump, just build)
+          elif echo "$COMMIT_MSG" | grep -qiE "^style(\(.+\))?:"; then
+            BUMP_TYPE="build"
+            BUMP_EMOJI="💄"
+            BUMP_LABEL="style"
+          # Check for chore: (no version bump, just build)
+          elif echo "$COMMIT_MSG" | grep -qiE "^chore(\(.+\))?:"; then
+            BUMP_TYPE="build"
+            BUMP_EMOJI="🔧"
+            BUMP_LABEL="chore"
+          # Check for test: (no version bump, just build)
+          elif echo "$COMMIT_MSG" | grep -qiE "^test(\(.+\))?:"; then
+            BUMP_TYPE="build"
+            BUMP_EMOJI="🧪"
+            BUMP_LABEL="test"
+          # Check for ci: (no version bump, just build)
+          elif echo "$COMMIT_MSG" | grep -qiE "^ci(\(.+\))?:"; then
+            BUMP_TYPE="build"
+            BUMP_EMOJI="👷"
+            BUMP_LABEL="ci"
+          # Default: just increment build number
+          else
+            BUMP_TYPE="build"
+            BUMP_EMOJI="🔖"
+            BUMP_LABEL="build"
+          fi
+          
+          echo "Bump type: $BUMP_TYPE"
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "bump_emoji=$BUMP_EMOJI" >> $GITHUB_OUTPUT
+          echo "bump_label=$BUMP_LABEL" >> $GITHUB_OUTPUT
+      
+      - name: Calculate new version
+        id: version
+        run: |
+          # Extract current version from pubspec.yaml
+          CURRENT_VERSION=$(grep -E "^version:" pubspec.yaml | sed 's/version: //')
+          echo "Current version: $CURRENT_VERSION"
+          
+          # Parse version and build number
+          # Format: MAJOR.MINOR.PATCH+BUILD
+          VERSION_PART=$(echo $CURRENT_VERSION | cut -d'+' -f1)
+          BUILD_NUMBER=$(echo $CURRENT_VERSION | cut -d'+' -f2)
+          
+          MAJOR=$(echo $VERSION_PART | cut -d'.' -f1)
+          MINOR=$(echo $VERSION_PART | cut -d'.' -f2)
+          PATCH=$(echo $VERSION_PART | cut -d'.' -f3)
+          
+          echo "Current: MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH, BUILD=$BUILD_NUMBER"
+          
+          BUMP_TYPE="${{ steps.analyze.outputs.bump_type }}"
+          
+          # Apply version bump based on type
+          case $BUMP_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+            build)
+              # No semantic version change, just build number
+              ;;
+          esac
+          
+          # Always increment build number
+          NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
+          
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}+${NEW_BUILD_NUMBER}"
+          
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "old_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "major=$MAJOR" >> $GITHUB_OUTPUT
+          echo "minor=$MINOR" >> $GITHUB_OUTPUT
+          echo "patch=$PATCH" >> $GITHUB_OUTPUT
+          echo "build=$NEW_BUILD_NUMBER" >> $GITHUB_OUTPUT
+          
+          # Update pubspec.yaml
+          sed -i "s/^version: .*/version: $NEW_VERSION/" pubspec.yaml
+      
+      - name: Commit version bump
+        run: |
+          git add pubspec.yaml
+          git commit -m "${{ steps.analyze.outputs.bump_emoji }} ${{ steps.analyze.outputs.bump_label }}: Bump version to ${{ steps.version.outputs.new_version }} [version bump]"
+          git push
+      
+      - name: Summary
+        run: |
+          echo "## ✅ Semantic Version Bumped!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Version Change" >> $GITHUB_STEP_SUMMARY
+          echo "| Old Version | New Version | Bump Type |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|-------------|-----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| \`${{ steps.version.outputs.old_version }}\` | \`${{ steps.version.outputs.new_version }}\` | **${{ steps.analyze.outputs.bump_label }}** ${{ steps.analyze.outputs.bump_emoji }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Version Breakdown" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Major | ${{ steps.version.outputs.major }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Minor | ${{ steps.version.outputs.minor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Patch | ${{ steps.version.outputs.patch }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ steps.version.outputs.build }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Conventional Commit Guide" >> $GITHUB_STEP_SUMMARY
+          echo "| Prefix | Version Bump | Example |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| \`BREAKING CHANGE:\` or \`feat!:\` | **MAJOR** (x.0.0) | Breaking API changes |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`feat:\` | **MINOR** (0.x.0) | New features |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`fix:\` | **PATCH** (0.0.x) | Bug fixes |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`perf:\` | **PATCH** (0.0.x) | Performance improvements |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`refactor:\` | **PATCH** (0.0.x) | Code refactoring |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`docs:\`, \`style:\`, \`chore:\`, \`test:\`, \`ci:\` | **BUILD** only | Non-code changes |" >> $GITHUB_STEP_SUMMARY
