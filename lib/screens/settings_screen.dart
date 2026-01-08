@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/auth_cubit.dart';
 import '../bloc/chat_cubit.dart';
 import '../bloc/progress_score_cubit.dart';
+import '../core/logger.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
@@ -51,7 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         // Handle potential nesting of profile data
         var profileData = futures[1];
-        print('Profile data raw: $profileData'); // Debug log
+        appLogger.d('Profile data raw: $profileData');
 
         if (profileData.containsKey('profile') &&
             profileData['profile'] is Map) {
@@ -59,9 +60,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             profileData = Map<String, dynamic>.from(
               profileData['profile'] as Map,
             );
-            print('Unwrapped profile data: $profileData');
-          } catch (e) {
-            print('Error unwrapping profile data: $e');
+            appLogger.d('Unwrapped profile data: $profileData');
+          } catch (e, st) {
+            appLogger.w(
+              'Error unwrapping profile data',
+              error: e,
+              stackTrace: st,
+            );
             // Fallback to raw data if casting fails
           }
         }
@@ -246,9 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Check for 'why' or 'reason'
     final why = (profile?['why'] as String?) ?? (profile?['reason'] as String?);
 
-    print(
-      'Building Goals Card. Primary: "$primaryGoal", Why: "$why"',
-    ); // Debug log
+    appLogger.d('Building Goals Card. Primary: "$primaryGoal", Why: "$why"');
 
     return Card(
       child: Padding(

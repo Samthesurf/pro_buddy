@@ -170,7 +170,7 @@ class GoalStep {
       description: json['description'] as String? ?? '',
       order: json['order_index'] as int? ?? json['order'] as int? ?? 0,
       status: StepStatus.values.firstWhere(
-        (s) => s.name == (json['status'] as String?)?.toLowerCase(),
+        (s) => s.name.toLowerCase() == (json['status'] as String?)?.toLowerCase(),
         orElse: () => StepStatus.locked,
       ),
       prerequisites:
@@ -220,7 +220,7 @@ class GoalStep {
       'custom_title': customTitle,
       'description': description,
       'order_index': order,
-      'status': status.name,
+      'status': status.name.toLowerCase(),
       'prerequisites': prerequisites,
       'alternatives': alternatives,
       'started_at': startedAt?.toIso8601String(),

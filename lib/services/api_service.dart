@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase;
 
 import '../core/constants.dart';
+import '../core/logger.dart';
 
 /// API service for communicating with the Python backend
 class ApiService {
@@ -29,7 +30,7 @@ class ApiService {
       LogInterceptor(
         requestBody: true,
         responseBody: true,
-        logPrint: (obj) => print('[API] $obj'),
+        logPrint: (obj) => appLogger.d('[API] $obj'),
       ),
     );
   }
@@ -358,8 +359,12 @@ class ApiService {
       }
 
       return useCases;
-    } catch (e) {
-      print('[ApiService] Failed to get app use cases: $e');
+    } catch (e, st) {
+      appLogger.e(
+        '[ApiService] Failed to get app use cases',
+        error: e,
+        stackTrace: st,
+      );
       return {};
     }
   }
@@ -405,8 +410,12 @@ class ApiService {
       final response = await _dio.get('/journey');
       if (response.data == null) return null;
       return response.data as Map<String, dynamic>;
-    } catch (e) {
-      print('[ApiService] No current journey found: $e');
+    } catch (e, st) {
+      appLogger.i(
+        '[ApiService] No current journey found',
+        error: e,
+        stackTrace: st,
+      );
       return null;
     }
   }
@@ -498,8 +507,12 @@ class AuthInterceptor extends Interceptor {
         final token = await user.getIdToken();
         options.headers['Authorization'] = 'Bearer $token';
       }
-    } catch (e) {
-      print('[AuthInterceptor] Failed to get token: $e');
+    } catch (e, st) {
+      appLogger.e(
+        '[AuthInterceptor] Failed to get token',
+        error: e,
+        stackTrace: st,
+      );
     }
     handler.next(options);
   }
@@ -509,7 +522,7 @@ class AuthInterceptor extends Interceptor {
     // Handle 401 errors - token expired or invalid
     if (err.response?.statusCode == 401) {
       // Could trigger re-authentication here
-      print('[AuthInterceptor] Unauthorized - token may be expired');
+      appLogger.w('[AuthInterceptor] Unauthorized - token may be expired');
     }
     handler.next(err);
   }

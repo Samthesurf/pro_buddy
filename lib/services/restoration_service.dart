@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/logger.dart';
+
 /// Service for managing app state restoration
 /// This helps restore the app to its last state after an abrupt closure
 class RestorationService {
@@ -29,8 +31,12 @@ class RestorationService {
       } else {
         await prefs.remove(_keyLastRouteArgs);
       }
-    } catch (e) {
-      print('Error saving route for restoration: $e');
+    } catch (e, st) {
+      appLogger.w(
+        'Error saving route for restoration',
+        error: e,
+        stackTrace: st,
+      );
     }
   }
 
@@ -47,8 +53,8 @@ class RestorationService {
       }
 
       return prefs.getString(_keyLastRoute);
-    } catch (e) {
-      print('Error getting last route: $e');
+    } catch (e, st) {
+      appLogger.w('Error getting last route', error: e, stackTrace: st);
       return null;
     }
   }
@@ -83,8 +89,8 @@ class RestorationService {
       }
 
       return args;
-    } catch (e) {
-      print('Error getting last route arguments: $e');
+    } catch (e, st) {
+      appLogger.w('Error getting last route arguments', error: e, stackTrace: st);
       return null;
     }
   }
@@ -95,8 +101,8 @@ class RestorationService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyIsProperShutdown, true);
-    } catch (e) {
-      print('Error marking proper shutdown: $e');
+    } catch (e, st) {
+      appLogger.w('Error marking proper shutdown', error: e, stackTrace: st);
     }
   }
 
@@ -107,8 +113,8 @@ class RestorationService {
       await prefs.remove(_keyLastRoute);
       await prefs.remove(_keyLastRouteArgs);
       await prefs.setBool(_keyIsProperShutdown, true);
-    } catch (e) {
-      print('Error clearing restoration data: $e');
+    } catch (e, st) {
+      appLogger.w('Error clearing restoration data', error: e, stackTrace: st);
     }
   }
 
@@ -121,8 +127,8 @@ class RestorationService {
 
       // Only restore if we have a route AND it wasn't a proper shutdown
       return !wasProperShutdown && hasLastRoute;
-    } catch (e) {
-      print('Error checking if should restore: $e');
+    } catch (e, st) {
+      appLogger.w('Error checking if should restore', error: e, stackTrace: st);
       return false;
     }
   }

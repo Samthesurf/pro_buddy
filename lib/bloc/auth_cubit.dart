@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../core/logger.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/onboarding_storage.dart';
@@ -32,7 +33,7 @@ class AuthCubit extends Cubit<AuthState> {
           // A different user just signed in - clear any cached onboarding state
           // so we rely purely on backend's onboarding_complete flag
           await OnboardingStorage.clearOnboardingState();
-          print(
+          appLogger.i(
             'Different user detected. Previous: $lastOnboardedUserId, Current: ${user.uid}',
           );
         }
@@ -56,10 +57,10 @@ class AuthCubit extends Cubit<AuthState> {
               isOnboardingComplete: isOnboardingComplete,
             ),
           );
-        } catch (e) {
+        } catch (e, st) {
           // If fetch fails (e.g. backend down or user not created yet),
           // default to false (show onboarding) to be safe for new users.
-          print('Error fetching user profile: $e');
+          appLogger.w('Error fetching user profile', error: e, stackTrace: st);
           emit(AuthState.authenticated(user, isOnboardingComplete: false));
         }
       } else {

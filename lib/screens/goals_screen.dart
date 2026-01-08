@@ -442,37 +442,65 @@ class _GoalsScreenContent extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 16),
-          Row(
-            children: [
-              if (step.status == StepStatus.available)
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () =>
-                        context.read<GoalJourneyCubit>().startCurrentStep(),
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Start Step'),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (step.status == StepStatus.available)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () =>
+                          context.read<GoalJourneyCubit>().startCurrentStep(),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('Start Step'),
+                    ),
+                  )
+                else if (step.status == StepStatus.inProgress) ...[
+                  Expanded(
+                    flex: 3,
+                    child: OutlinedButton.icon(
+                      onPressed: () => GoalProgressDialog.show(context, step),
+                      icon: const Icon(Icons.edit_note_rounded),
+                      label: const Text(
+                        'Log Progress',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
                   ),
-                )
-              else if (step.status == StepStatus.inProgress) ...[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => GoalProgressDialog.show(context, step),
-                    icon: const Icon(Icons.edit_note_rounded),
-                    label: const Text('Log Progress'),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: () => context
+                          .read<GoalJourneyCubit>()
+                          .completeCurrentStep(),
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text(
+                        'Complete',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.successColor,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: () =>
-                      context.read<GoalJourneyCubit>().completeCurrentStep(),
-                  icon: const Icon(Icons.check_rounded),
-                  label: const Text('Complete'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.successColor,
-                  ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ),

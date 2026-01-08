@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../core/logger.dart';
 import '../models/goal_journey.dart';
 import '../services/api_service.dart';
 import '../services/eta_calculator.dart';
@@ -91,8 +92,12 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
       emit(
         state.copyWith(journey: journey, etaData: etaData, isLoading: false),
       );
-    } catch (e) {
-      print('[GoalJourneyCubit] Error loading journey: $e');
+    } catch (e, st) {
+      appLogger.e(
+        '[GoalJourneyCubit] Error loading journey',
+        error: e,
+        stackTrace: st,
+      );
       emit(state.copyWith(isLoading: false, error: 'Failed to load journey'));
     }
   }
@@ -125,8 +130,12 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
       emit(
         state.copyWith(journey: journey, etaData: etaData, isGenerating: false),
       );
-    } catch (e) {
-      print('[GoalJourneyCubit] Error generating journey: $e');
+    } catch (e, st) {
+      appLogger.e(
+        '[GoalJourneyCubit] Error generating journey',
+        error: e,
+        stackTrace: st,
+      );
       emit(
         state.copyWith(
           isGenerating: false,
@@ -219,7 +228,7 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
     try {
       await _apiService.updateStepStatus(
         stepId: stepId,
-        status: status.name,
+        status: status.name.toLowerCase(),
         notes: notes,
       );
 
@@ -229,8 +238,12 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
       );
       newPending.remove(stepId);
       emit(state.copyWith(pendingStatusChanges: newPending));
-    } catch (e) {
-      print('[GoalJourneyCubit] Error updating step status: $e');
+    } catch (e, st) {
+      appLogger.e(
+        '[GoalJourneyCubit] Error updating step status',
+        error: e,
+        stackTrace: st,
+      );
       // Revert optimistic update on error
       emit(
         state.copyWith(
@@ -268,8 +281,12 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
           ),
         ),
       );
-    } catch (e) {
-      print('[GoalJourneyCubit] Error adding note: $e');
+    } catch (e, st) {
+      appLogger.e(
+        '[GoalJourneyCubit] Error adding note',
+        error: e,
+        stackTrace: st,
+      );
       emit(state.copyWith(error: 'Failed to add note'));
     }
   }
@@ -303,8 +320,12 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
           ),
         ),
       );
-    } catch (e) {
-      print('[GoalJourneyCubit] Error updating title: $e');
+    } catch (e, st) {
+      appLogger.e(
+        '[GoalJourneyCubit] Error updating title',
+        error: e,
+        stackTrace: st,
+      );
       emit(state.copyWith(error: 'Failed to update title'));
     }
   }
@@ -338,8 +359,12 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
           isLoading: false,
         ),
       );
-    } catch (e) {
-      print('[GoalJourneyCubit] Error adjusting journey: $e');
+    } catch (e, st) {
+      appLogger.e(
+        '[GoalJourneyCubit] Error adjusting journey',
+        error: e,
+        stackTrace: st,
+      );
       emit(
         state.copyWith(
           isLoading: false,
@@ -359,8 +384,12 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
     try {
       await _apiService.deleteJourney(journey.id);
       emit(GoalJourneyState.initial());
-    } catch (e) {
-      print('[GoalJourneyCubit] Error deleting journey: $e');
+    } catch (e, st) {
+      appLogger.e(
+        '[GoalJourneyCubit] Error deleting journey',
+        error: e,
+        stackTrace: st,
+      );
       emit(state.copyWith(isLoading: false, error: 'Failed to delete journey'));
     }
   }

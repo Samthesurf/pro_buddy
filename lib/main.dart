@@ -177,7 +177,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       final lastRouteArgs = await RestorationService.getLastRouteArguments();
 
       if (lastRoute != null && mounted) {
-        print('Restoring to last route: $lastRoute');
+        appLogger.i('Restoring to last route: $lastRoute');
         _isRestoringState = true;
         _didNavigate = true;
 

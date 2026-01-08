@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+import '../core/logger.dart';
+
 /// Model representing app usage statistics
 class AppUsageStat {
   final String packageName;
@@ -66,8 +68,12 @@ class UsageTrackingService {
         'hasUsageStatsPermission',
       );
       return result ?? false;
-    } on PlatformException catch (e) {
-      print('Error checking usage stats permission: $e');
+    } on PlatformException catch (e, st) {
+      appLogger.e(
+        'Error checking usage stats permission',
+        error: e,
+        stackTrace: st,
+      );
       return false;
     }
   }
@@ -79,8 +85,12 @@ class UsageTrackingService {
         'openUsageStatsSettings',
       );
       return result ?? false;
-    } on PlatformException catch (e) {
-      print('Error opening usage stats settings: $e');
+    } on PlatformException catch (e, st) {
+      appLogger.e(
+        'Error opening usage stats settings',
+        error: e,
+        stackTrace: st,
+      );
       return false;
     }
   }
@@ -102,8 +112,8 @@ class UsageTrackingService {
                 AppUsageStat.fromMap(Map<String, dynamic>.from(item as Map)),
           )
           .toList();
-    } on PlatformException catch (e) {
-      print('Error getting usage stats: $e');
+    } on PlatformException catch (e, st) {
+      appLogger.e('Error getting usage stats', error: e, stackTrace: st);
       return [];
     }
   }
@@ -123,8 +133,8 @@ class UsageTrackingService {
                 AppUsageStat.fromMap(Map<String, dynamic>.from(item as Map)),
           )
           .toList();
-    } on PlatformException catch (e) {
-      print('Error getting daily usage stats: $e');
+    } on PlatformException catch (e, st) {
+      appLogger.e('Error getting daily usage stats', error: e, stackTrace: st);
       return [];
     }
   }

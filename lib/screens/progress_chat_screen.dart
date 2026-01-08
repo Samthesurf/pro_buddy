@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../bloc/chat_cubit.dart';
 import '../bloc/progress_score_cubit.dart';
 import '../bloc/progress_summary_cubit.dart';
+import '../core/logger.dart';
 import '../core/routes.dart';
 import '../models/chat.dart';
 import '../services/api_service.dart';
@@ -70,6 +71,11 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
       _triggerPackage = args['triggerPackage'] as String?;
       _notificationType = args['notificationType'] as String?;
       _notificationMessage = args['message'] as String?;
+
+      appLogger.d(
+        'Notification context: triggerApp=$_triggerApp, triggerPackage=$_triggerPackage, '
+        'type=$_notificationType, message=$_notificationMessage',
+      );
     }
   }
 
@@ -267,8 +273,8 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
 
       if (!mounted) return;
       HapticFeedback.mediumImpact();
-    } catch (e) {
-      print('Error starting recording: $e');
+    } catch (e, st) {
+      appLogger.e('Error starting recording', error: e, stackTrace: st);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -319,11 +325,11 @@ class _ProgressChatScreenState extends State<ProgressChatScreen>
       // Clean up the recording file
       try {
         await audioFile.delete();
-      } catch (e) {
-        print('Error deleting recording file: $e');
+      } catch (e, st) {
+        appLogger.w('Error deleting recording file', error: e, stackTrace: st);
       }
-    } catch (e) {
-      print('Error stopping recording: $e');
+    } catch (e, st) {
+      appLogger.e('Error stopping recording', error: e, stackTrace: st);
       setState(() {
         _isRecording = false;
       });

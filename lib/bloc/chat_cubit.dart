@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../core/logger.dart';
 import '../models/chat.dart';
 import '../services/api_service.dart';
 
@@ -169,8 +170,8 @@ class ChatCubit extends Cubit<ChatState> {
       finalMessages.add(assistantMessage);
 
       emit(state.copyWith(messages: finalMessages, isLoading: false));
-    } catch (e) {
-      print('Error sending voice message: $e');
+    } catch (e, st) {
+      appLogger.e('Error sending voice message', error: e, stackTrace: st);
       final finalMessages = List<ChatMessage>.from(updatedMessages);
       finalMessages.removeLast(); // Remove placeholder
       finalMessages.add(
