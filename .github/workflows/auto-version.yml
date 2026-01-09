@@ -16,11 +16,10 @@ concurrency:
 jobs:
   bump-version:
     runs-on: ubuntu-latest
-    # Skip if commit message contains [skip ci] or is from the bot
-    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[version bump]')"
     
     permissions:
       contents: write
+      pull-requests: write
     
     steps:
       - name: Checkout repository
@@ -29,17 +28,59 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       
+      - name: Detect version bump commits in push
+        id: detect
+        run: |
+          set -euo pipefail
+
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            RANGE="$AFTER"
+          else
+            RANGE="${BEFORE}..${AFTER}"
+          fi
+          echo "Checking commit range: $RANGE"
+
+          # If *any* commit in this push is a version bump or explicitly skips CI,
+          # exit early to avoid loops (e.g. merge commits).
+          if git log --format=%B "$RANGE" | grep -Fq "[version bump]"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git log --format=%B "$RANGE" | grep -Fq "[skip ci]"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
       - name: Configure Git
+        if: steps.detect.outputs.skip != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
       
       - name: Analyze commit and determine version bump
         id: analyze
+        if: steps.detect.outputs.skip != 'true'
         run: |
-          # Get commit message
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
-          echo "Commit message: $COMMIT_MSG"
+          set -euo pipefail
+
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            RANGE="$AFTER"
+          else
+            RANGE="${BEFORE}..${AFTER}"
+          fi
+          echo "Analyzing commit range: $RANGE"
+
+          COMMIT_SUBJECTS="$(git log --format=%s "$RANGE")"
+          COMMIT_BODIES="$(git log --format=%B "$RANGE")"
+
+          echo "Commit subjects:"
+          echo "$COMMIT_SUBJECTS"
           
           # Determine bump type based on conventional commits
           # Priority: BREAKING > feat > fix/others
@@ -48,52 +89,52 @@ jobs:
           BUMP_LABEL="fix"
           
           # Check for BREAKING CHANGE (major bump)
-          if echo "$COMMIT_MSG" | grep -qiE "(BREAKING CHANGE|BREAKING:|\!:)"; then
+          if echo "$COMMIT_BODIES" | grep -qiE "(BREAKING CHANGE|BREAKING:|\!:)"; then
             BUMP_TYPE="major"
             BUMP_EMOJI="💥"
             BUMP_LABEL="BREAKING CHANGE"
           # Check for feat: (minor bump)
-          elif echo "$COMMIT_MSG" | grep -qiE "^feat(\(.+\))?:"; then
+          elif echo "$COMMIT_SUBJECTS" | grep -qiE "^feat(\(.+\))?:"; then
             BUMP_TYPE="minor"
             BUMP_EMOJI="✨"
             BUMP_LABEL="feature"
           # Check for fix: (patch bump)
-          elif echo "$COMMIT_MSG" | grep -qiE "^fix(\(.+\))?:"; then
+          elif echo "$COMMIT_SUBJECTS" | grep -qiE "^fix(\(.+\))?:"; then
             BUMP_TYPE="patch"
             BUMP_EMOJI="🐛"
             BUMP_LABEL="fix"
           # Check for perf: (patch bump)
-          elif echo "$COMMIT_MSG" | grep -qiE "^perf(\(.+\))?:"; then
+          elif echo "$COMMIT_SUBJECTS" | grep -qiE "^perf(\(.+\))?:"; then
             BUMP_TYPE="patch"
             BUMP_EMOJI="⚡"
             BUMP_LABEL="performance"
           # Check for refactor: (patch bump)
-          elif echo "$COMMIT_MSG" | grep -qiE "^refactor(\(.+\))?:"; then
+          elif echo "$COMMIT_SUBJECTS" | grep -qiE "^refactor(\(.+\))?:"; then
             BUMP_TYPE="patch"
             BUMP_EMOJI="♻️"
             BUMP_LABEL="refactor"
           # Check for docs: (no version bump, just build)
-          elif echo "$COMMIT_MSG" | grep -qiE "^docs(\(.+\))?:"; then
+          elif echo "$COMMIT_SUBJECTS" | grep -qiE "^docs(\(.+\))?:"; then
             BUMP_TYPE="build"
             BUMP_EMOJI="📚"
             BUMP_LABEL="docs"
           # Check for style: (no version bump, just build)
-          elif echo "$COMMIT_MSG" | grep -qiE "^style(\(.+\))?:"; then
+          elif echo "$COMMIT_SUBJECTS" | grep -qiE "^style(\(.+\))?:"; then
             BUMP_TYPE="build"
             BUMP_EMOJI="💄"
             BUMP_LABEL="style"
           # Check for chore: (no version bump, just build)
-          elif echo "$COMMIT_MSG" | grep -qiE "^chore(\(.+\))?:"; then
+          elif echo "$COMMIT_SUBJECTS" | grep -qiE "^chore(\(.+\))?:"; then
             BUMP_TYPE="build"
             BUMP_EMOJI="🔧"
             BUMP_LABEL="chore"
           # Check for test: (no version bump, just build)
-          elif echo "$COMMIT_MSG" | grep -qiE "^test(\(.+\))?:"; then
+          elif echo "$COMMIT_SUBJECTS" | grep -qiE "^test(\(.+\))?:"; then
             BUMP_TYPE="build"
             BUMP_EMOJI="🧪"
             BUMP_LABEL="test"
           # Check for ci: (no version bump, just build)
-          elif echo "$COMMIT_MSG" | grep -qiE "^ci(\(.+\))?:"; then
+          elif echo "$COMMIT_SUBJECTS" | grep -qiE "^ci(\(.+\))?:"; then
             BUMP_TYPE="build"
             BUMP_EMOJI="👷"
             BUMP_LABEL="ci"
@@ -111,7 +152,10 @@ jobs:
       
       - name: Calculate new version
         id: version
+        if: steps.detect.outputs.skip != 'true'
         run: |
+          set -euo pipefail
+
           # Extract current version from pubspec.yaml
           CURRENT_VERSION=$(grep -E "^version:" pubspec.yaml | sed 's/version: //')
           echo "Current version: $CURRENT_VERSION"
@@ -164,13 +208,27 @@ jobs:
           # Update pubspec.yaml
           sed -i "s/^version: .*/version: $NEW_VERSION/" pubspec.yaml
       
-      - name: Commit version bump
-        run: |
-          git add pubspec.yaml
-          git commit -m "${{ steps.analyze.outputs.bump_emoji }} ${{ steps.analyze.outputs.bump_label }}: Bump version to ${{ steps.version.outputs.new_version }} [version bump]"
-          git push
+      - name: Create pull request
+        id: pr
+        if: steps.detect.outputs.skip != 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ci/version-bump
+          delete-branch: true
+          commit-message: "${{ steps.analyze.outputs.bump_emoji }} ${{ steps.analyze.outputs.bump_label }}: Bump version to ${{ steps.version.outputs.new_version }} [version bump]"
+          title: "${{ steps.analyze.outputs.bump_emoji }} ${{ steps.analyze.outputs.bump_label }}: Bump version to ${{ steps.version.outputs.new_version }} [version bump]"
+          body: |
+            Automated version bump.
+
+            - Old version: `${{ steps.version.outputs.old_version }}`
+            - New version: `${{ steps.version.outputs.new_version }}`
+            - Bump type: ${{ steps.analyze.outputs.bump_label }} ${{ steps.analyze.outputs.bump_emoji }}
+
+            Triggered by: `${{ github.sha }}`
       
       - name: Summary
+        if: steps.detect.outputs.skip != 'true'
         run: |
           echo "## ✅ Semantic Version Bumped!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -178,6 +236,9 @@ jobs:
           echo "| Old Version | New Version | Bump Type |" >> $GITHUB_STEP_SUMMARY
           echo "|-------------|-------------|-----------|" >> $GITHUB_STEP_SUMMARY
           echo "| \`${{ steps.version.outputs.old_version }}\` | \`${{ steps.version.outputs.new_version }}\` | **${{ steps.analyze.outputs.bump_label }}** ${{ steps.analyze.outputs.bump_emoji }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull Request" >> $GITHUB_STEP_SUMMARY
+          echo "- URL: ${{ steps.pr.outputs.pull-request-url }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Version Breakdown" >> $GITHUB_STEP_SUMMARY
           echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
