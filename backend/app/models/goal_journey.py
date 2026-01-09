@@ -198,6 +198,11 @@ class StepNoteAdd(BaseModel):
     note: str = Field(..., min_length=1)
 
 
+class StepChoosePath(BaseModel):
+    """Request model for choosing a path at a decision step."""
+    chosen_step_id: str = Field(..., min_length=1, description="Chosen option step ID")
+
+
 class JourneyGenerateRequest(BaseModel):
     """Request model for generating a new journey."""
     goal_content: str = Field(..., min_length=10)

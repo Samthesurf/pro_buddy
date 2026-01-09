@@ -202,13 +202,25 @@ WHY IT MATTERS: {goal_reason or "Not specified"}
 CONTEXT:
 {context_str}
 
-Create a journey with 5-8 actionable steps to achieve this goal. Each step should:
+Create a journey with 6-10 actionable steps to achieve this goal. Each step should:
 1. Be specific and actionable
 2. Build logically on previous steps  
 3. Have a realistic time estimate (in days)
 4. Progress toward the final goal
 
-Also include 1-2 alternative paths at key decision points (marked as "alternative" path_type).
+Some parts of a journey are NON‑NEGOTIABLE (core steps everyone must do).
+Some parts involve CHOICES (the user must pick ONE path and their journey adapts).
+
+Include 1-2 decision points where the user chooses between 2-4 paths (e.g. "Choose a specialization").
+Represent a decision point as a MAIN step that has an "alternatives" array listing the option steps.
+
+Rules for choice steps:
+- The decision step MUST be path_type "main"
+- The decision step MUST include: "alternatives": ["step_#", "step_#", ...] with 2-4 options
+- Each option step MUST be path_type "alternative" and MUST have prerequisites: ["step_<decision_index>"]
+- Option titles should be clearly different (e.g. "Criminal Law", "Corporate Law", "Family Law")
+- It's okay for option branches to be short (1-2 steps per option) — the key is that picking changes what appears next.
+
 The final destination is the goal itself - do NOT include it as a step.
 
 Return ONLY valid JSON with this exact structure:
@@ -221,15 +233,26 @@ Return ONLY valid JSON with this exact structure:
       "estimated_days": 14,
       "path_type": "main",
       "prerequisites": [],
+      "alternatives": [],
       "tips": ["Helpful tip 1", "Helpful tip 2"]
     }},
     {{
-      "title": "Alternative approach title",
-      "description": "An alternative path the user could take",
+      "title": "Decision point step (choose one path)",
+      "description": "Explain the choice and why it matters",
+      "estimated_days": 2,
+      "path_type": "main",
+      "prerequisites": ["step_0"],
+      "alternatives": ["step_2", "step_3"],
+      "tips": ["Help the user decide"]
+    }},
+    {{
+      "title": "Option A",
+      "description": "First path option",
       "estimated_days": 21,
       "path_type": "alternative",
-      "prerequisites": ["step_0"],
-      "tips": ["Tip for alternative path"]
+      "prerequisites": ["step_1"],
+      "alternatives": [],
+      "tips": ["Tip for this option"]
     }}
   ]
 }}
@@ -237,8 +260,8 @@ Return ONLY valid JSON with this exact structure:
 IMPORTANT:
 - Order steps logically (first step is step_0, etc.)
 - Prerequisites use step indices like "step_0", "step_1"
-- Keep main path to 5-7 steps
-- Include 1-2 alternative branches
+- Keep non-negotiable MAIN steps to ~5-8
+- Include 1-2 decision points with 2-4 options each
 - estimated_days should be realistic (7-30 days typically)
 - Focus on the user's specific goal and context
 """
@@ -296,42 +319,79 @@ Be conservative - only make changes that clearly match user's activity.
         steps_data: List[Dict[str, Any]],
     ) -> List[GoalStep]:
         """Parse AI-generated steps into GoalStep objects."""
-        steps = []
-        total_steps = len([s for s in steps_data if s.get("path_type", "main") == "main"])
-        
+        if not steps_data:
+            return []
+
+        step_ids: List[str] = [str(uuid.uuid4()) for _ in steps_data]
+        total = len(steps_data)
+        now = datetime.utcnow()
+
+        steps: List[GoalStep] = []
+
         for i, step_data in enumerate(steps_data):
-            is_main = step_data.get("path_type", "main") == "main"
-            main_index = len([s for s in steps[:i+1] if s.path_type == PathType.MAIN]) if is_main else i
-            
-            # Calculate position on map
-            y_pos = (main_index + 1) / (total_steps + 2)  # Leave room for start/end
+            raw_path_type = str(step_data.get("path_type", "main")).lower().strip()
+            is_main = raw_path_type != "alternative"
+
+            # Keep map positions valid (0.0 - 1.0). Our current Flutter UI doesn't
+            # use these yet, but the API model validates them.
+            y_pos = (i + 1) / (total + 2)  # Leave room for start/end
             x_pos = 0.5 if is_main else (0.3 if i % 2 == 0 else 0.7)
-            
-            # Parse prerequisites
-            prerequisites = []
-            for prereq in step_data.get("prerequisites", []):
+
+            # Parse prerequisites and alternatives, mapping "step_#" → UUID
+            prerequisites: List[str] = []
+            for prereq in step_data.get("prerequisites", []) or []:
                 if isinstance(prereq, str) and prereq.startswith("step_"):
-                    idx = int(prereq.replace("step_", ""))
-                    if idx < len(steps):
-                        prerequisites.append(steps[idx].id)
-            
+                    try:
+                        idx = int(prereq.replace("step_", ""))
+                    except ValueError:
+                        continue
+                    if 0 <= idx < len(step_ids):
+                        prerequisites.append(step_ids[idx])
+
+            alternatives: List[str] = []
+            for alt in step_data.get("alternatives", []) or []:
+                if isinstance(alt, str) and alt.startswith("step_"):
+                    try:
+                        idx = int(alt.replace("step_", ""))
+                    except ValueError:
+                        continue
+                    if 0 <= idx < len(step_ids):
+                        alternatives.append(step_ids[idx])
+
+            # Metadata: preserve any model-provided metadata, and also store "tips"
+            metadata: Optional[Dict[str, Any]] = None
+            if isinstance(step_data.get("metadata"), dict):
+                metadata = dict(step_data.get("metadata") or {})
+
+            tips = step_data.get("tips", [])
+            if isinstance(tips, list):
+                metadata = metadata or {}
+                metadata["tips"] = tips
+
+            path_type = PathType.MAIN if is_main else PathType.ALTERNATIVE
+            status = StepStatus.LOCKED if is_main else StepStatus.ALTERNATIVE
+            try:
+                estimated_days = int(step_data.get("estimated_days", 14) or 14)
+            except (TypeError, ValueError):
+                estimated_days = 14
+
             step = GoalStep(
-                id=str(uuid.uuid4()),
+                id=step_ids[i],
                 journey_id=journey_id,
                 title=step_data.get("title", f"Step {i + 1}"),
-                description=step_data.get("description", ""),
+                description=step_data.get("description", "") or "",
                 order_index=i,
-                status=StepStatus.LOCKED,
+                status=status,
                 prerequisites=prerequisites,
-                alternatives=[],
+                alternatives=alternatives,
                 position=MapPosition(x=x_pos, y=y_pos, layer=i),
-                path_type=PathType.MAIN if is_main else PathType.ALTERNATIVE,
-                estimated_days=step_data.get("estimated_days", 14),
-                metadata={"tips": step_data.get("tips", [])},
-                created_at=datetime.utcnow(),
+                path_type=path_type,
+                estimated_days=estimated_days,
+                metadata=metadata,
+                created_at=now,
             )
             steps.append(step)
-        
+
         return steps
 
     def _apply_adjustments(

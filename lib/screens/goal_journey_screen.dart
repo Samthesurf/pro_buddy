@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/goal_journey_cubit.dart';
 import '../core/semantic_colors.dart';
 import '../models/goal_journey.dart';
-import '../widgets/current_position_marker.dart';
 import '../widgets/destination_node.dart';
 import '../widgets/goal_adjustment_sheet.dart';
 import '../widgets/goal_progress_dialog.dart';
@@ -54,6 +53,15 @@ class _GoalJourneyScreenState extends State<GoalJourneyScreen> {
       ),
       body: BlocConsumer<GoalJourneyCubit, GoalJourneyState>(
         listener: (context, state) {
+          if (state.error != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.error!),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            context.read<GoalJourneyCubit>().clearError();
+          }
           // Check for celebrations
           // Logic: If a step was just completed, show step celebration
           // If overall progress reached a milestone, show milestone celebration
@@ -198,18 +206,30 @@ class _GoalJourneyScreenState extends State<GoalJourneyScreen> {
             ...journey.mainPath.asMap().entries.map((entry) {
               final index = entry.key;
               final step = entry.value;
+              final pathOptions = _getPathOptions(journey, step);
               // Only animate if this is a fresh load (optional optimization, but good for UX)
               // For now we animate every time the map builds which might be too much if it rebuilds often.
               // However, PathDrawAnimation is stateful and will only run once on init.
               return PathDrawAnimation(
                 delay: Duration(milliseconds: index * 200),
-                child: GoalStepNode(
-                  step: step,
-                  onCelebration: (type) {
-                    setState(() {
-                      _activeCelebration = type;
-                    });
-                  },
+                child: Column(
+                  children: [
+                    GoalStepNode(
+                      step: step,
+                      onCelebration: (type) {
+                        setState(() {
+                          _activeCelebration = type;
+                        });
+                      },
+                    ),
+                    if (pathOptions.length >= 2)
+                      _buildPathChoiceBlock(
+                        context,
+                        decisionStep: step,
+                        options: pathOptions,
+                        isBusy: state.isLoading,
+                      ),
+                  ],
                 ),
               );
             }),
@@ -313,6 +333,100 @@ class _GoalJourneyScreenState extends State<GoalJourneyScreen> {
 
   void _centerOnCurrentStep() {
     _transformationController.value = Matrix4.identity();
+  }
+
+  List<GoalStep> _getPathOptions(GoalJourney journey, GoalStep decisionStep) {
+    if (decisionStep.alternatives.isNotEmpty) {
+      final options = <GoalStep>[];
+      for (final id in decisionStep.alternatives) {
+        final match = journey.steps.where((s) => s.id == id).toList();
+        if (match.isNotEmpty) options.add(match.first);
+      }
+      return options;
+    }
+
+    // Fallback: treat all child steps as options.
+    return journey.steps
+        .where((s) => s.prerequisites.contains(decisionStep.id))
+        .toList();
+  }
+
+  Widget _buildPathChoiceBlock(
+    BuildContext context, {
+    required GoalStep decisionStep,
+    required List<GoalStep> options,
+    required bool isBusy,
+  }) {
+    final theme = Theme.of(context);
+    final meta = decisionStep.metadata;
+    final selectedFromMeta =
+        (meta != null && meta['selected_path_step_id'] is String)
+            ? meta['selected_path_step_id'] as String
+            : null;
+
+    String? selectedId;
+    if (selectedFromMeta != null && selectedFromMeta.trim().isNotEmpty) {
+      selectedId = selectedFromMeta;
+    } else {
+      final mainOptions = options.where((s) => s.pathType == PathType.main).toList();
+      if (mainOptions.isNotEmpty) selectedId = mainOptions.first.id;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.outlineColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.alt_route_rounded,
+                  size: 18,
+                  color: theme.primaryColor,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Choose a path',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: options.map((opt) {
+                final isSelected = selectedId != null && opt.id == selectedId;
+                return ChoiceChip(
+                  label: Text(opt.displayTitle),
+                  selected: isSelected,
+                  onSelected: isBusy
+                      ? null
+                      : (selected) {
+                          if (!selected) return;
+                          context.read<GoalJourneyCubit>().choosePath(
+                                decisionStepId: decisionStep.id,
+                                chosenStepId: opt.id,
+                              );
+                        },
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
 

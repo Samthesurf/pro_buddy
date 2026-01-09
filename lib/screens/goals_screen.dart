@@ -155,7 +155,12 @@ class _GoalsScreenContent extends StatelessWidget {
               _buildProgressCard(context, journey, eta),
               const SizedBox(height: 16),
               if (journey.currentStep != null)
-                _buildCurrentStepCard(context, journey.currentStep!),
+                _buildCurrentStepCard(
+                  context,
+                  journey: journey,
+                  step: journey.currentStep!,
+                  isBusy: state.isLoading,
+                ),
               const SizedBox(height: 16),
               _buildViewJourneyButton(context, journey),
               const SizedBox(height: 80),
@@ -351,7 +356,12 @@ class _GoalsScreenContent extends StatelessWidget {
     );
   }
 
-  Widget _buildCurrentStepCard(BuildContext context, GoalStep step) {
+  Widget _buildCurrentStepCard(
+    BuildContext context, {
+    required GoalJourney journey,
+    required GoalStep step,
+    required bool isBusy,
+  }) {
     final theme = Theme.of(context);
 
     Color statusColor;
@@ -441,6 +451,12 @@ class _GoalsScreenContent extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ],
+          _buildPathChoicesIfAny(
+            context,
+            journey: journey,
+            decisionStep: step,
+            isBusy: isBusy,
+          ),
           const SizedBox(height: 16),
           IntrinsicHeight(
             child: Row(
@@ -505,6 +521,97 @@ class _GoalsScreenContent extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildPathChoicesIfAny(
+    BuildContext context, {
+    required GoalJourney journey,
+    required GoalStep decisionStep,
+    required bool isBusy,
+  }) {
+    // Only show when there are multiple possible paths.
+    final options = _getPathOptions(journey, decisionStep);
+    if (options.length < 2) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+
+    final meta = decisionStep.metadata;
+    final selectedFromMeta =
+        (meta != null && meta['selected_path_step_id'] is String)
+            ? meta['selected_path_step_id'] as String
+            : null;
+
+    String? selectedId;
+    if (selectedFromMeta != null && selectedFromMeta.trim().isNotEmpty) {
+      selectedId = selectedFromMeta;
+    } else {
+      final mainOptions = options.where((s) => s.pathType == PathType.main).toList();
+      if (mainOptions.isNotEmpty) selectedId = mainOptions.first.id;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Icon(Icons.alt_route_rounded, size: 18, color: theme.primaryColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Choose your path',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Some parts of your journey have options. Picking one will adapt your map.',
+          style: theme.textTheme.bodySmall?.copyWith(color: theme.mutedTextColor),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((opt) {
+            final isSelected = selectedId != null && opt.id == selectedId;
+            return ChoiceChip(
+              label: Text(opt.displayTitle),
+              selected: isSelected,
+              onSelected: isBusy
+                  ? null
+                  : (selected) {
+                      if (!selected) return;
+                      context.read<GoalJourneyCubit>().choosePath(
+                            decisionStepId: decisionStep.id,
+                            chosenStepId: opt.id,
+                          );
+                    },
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  List<GoalStep> _getPathOptions(GoalJourney journey, GoalStep decisionStep) {
+    // Prefer explicit alternatives list.
+    if (decisionStep.alternatives.isNotEmpty) {
+      final options = <GoalStep>[];
+      for (final id in decisionStep.alternatives) {
+        final match = journey.steps.where((s) => s.id == id).toList();
+        if (match.isNotEmpty) options.add(match.first);
+      }
+      return options;
+    }
+
+    // Fallback: use prerequisites graph (children of this step).
+    return journey.steps
+        .where((s) => s.prerequisites.contains(decisionStep.id))
+        .toList();
   }
 
   Widget _buildViewJourneyButton(BuildContext context, GoalJourney journey) {

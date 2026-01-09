@@ -26,10 +26,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Map<String, dynamic>? _selectedApps;
   String? _error;
 
+  final ScrollController _mainScrollController = ScrollController();
+  final ScrollController _appsScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _mainScrollController.dispose();
+    _appsScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -99,8 +109,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : RefreshIndicator(
               onRefresh: _loadData,
               child: Scrollbar(
+                controller: _mainScrollController,
                 thumbVisibility: true,
                 child: ListView(
+                  controller: _mainScrollController,
                   padding: const EdgeInsets.all(16),
                   children: [
                     // Primary Goals Section
@@ -735,8 +747,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 300),
                 child: Scrollbar(
+                  controller: _appsScrollController,
                   thumbVisibility: true,
                   child: SingleChildScrollView(
+                    controller: _appsScrollController,
                     child: Column(
                       children: appsList.map((app) {
                         final appMap = app as Map<String, dynamic>;

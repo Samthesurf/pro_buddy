@@ -28,6 +28,9 @@ android {
         applicationId = "com.example.pro_buddy"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // NOTE: With Flutter 3.38.x, the default minSdk is 24 (Android 7.0).
+        // Phones running Android 6.0 or below cannot install the APK.
+        // Supporting older Android versions requires using an older Flutter version.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

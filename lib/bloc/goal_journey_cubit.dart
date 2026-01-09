@@ -176,14 +176,20 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
 
     // If completing a step, unlock the next one
     if (status == StepStatus.completed) {
-      final completedStepIndex = updatedSteps.indexWhere((s) => s.id == stepId);
-      if (completedStepIndex >= 0 &&
-          completedStepIndex + 1 < updatedSteps.length) {
-        final nextStep = updatedSteps[completedStepIndex + 1];
-        if (nextStep.status == StepStatus.locked && nextStep.isOnMainPath) {
-          updatedSteps[completedStepIndex + 1] = nextStep.copyWith(
-            status: StepStatus.available,
+      final mainSteps = updatedSteps.where((s) => s.isOnMainPath).toList()
+        ..sort((a, b) => a.order.compareTo(b.order));
+
+      final completedMainIndex = mainSteps.indexWhere((s) => s.id == stepId);
+      if (completedMainIndex >= 0 && completedMainIndex + 1 < mainSteps.length) {
+        final nextStep = mainSteps[completedMainIndex + 1];
+        if (nextStep.status == StepStatus.locked) {
+          final nextStepIndexInAll = updatedSteps.indexWhere(
+            (s) => s.id == nextStep.id,
           );
+          if (nextStepIndexInAll != -1) {
+            updatedSteps[nextStepIndexInAll] = updatedSteps[nextStepIndexInAll]
+                .copyWith(status: StepStatus.available);
+          }
         }
       }
     }
@@ -369,6 +375,47 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
         state.copyWith(
           isLoading: false,
           error: 'Failed to adjust journey. Please try again.',
+        ),
+      );
+    }
+  }
+
+  /// Choose a path at a decision point (updates the journey map adaptively)
+  Future<void> choosePath({
+    required String decisionStepId,
+    required String chosenStepId,
+  }) async {
+    final currentJourney = state.journey;
+    if (currentJourney == null) return;
+
+    emit(state.copyWith(isLoading: true, clearError: true));
+
+    try {
+      final data = await _apiService.chooseJourneyPath(
+        decisionStepId: decisionStepId,
+        chosenStepId: chosenStepId,
+      );
+
+      final updatedJourney = GoalJourney.fromJson(data);
+      final newEtaData = ETACalculator.calculate(updatedJourney);
+
+      emit(
+        state.copyWith(
+          journey: updatedJourney,
+          etaData: newEtaData,
+          isLoading: false,
+        ),
+      );
+    } catch (e, st) {
+      appLogger.e(
+        '[GoalJourneyCubit] Error choosing path',
+        error: e,
+        stackTrace: st,
+      );
+      emit(
+        state.copyWith(
+          isLoading: false,
+          error: 'Failed to choose path. Please try again.',
         ),
       );
     }

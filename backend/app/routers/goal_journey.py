@@ -14,6 +14,7 @@ from ..models.goal_journey import (
     GoalJourney,
     GoalStep,
     StepStatus,
+    PathType,
     JourneyGenerateRequest,
     JourneyGenerateResponse,
     JourneyAdjustmentRequest,
@@ -21,6 +22,7 @@ from ..models.goal_journey import (
     StepStatusUpdate,
     StepTitleUpdate,
     StepNoteAdd,
+    StepChoosePath,
 )
 from ..services.journey_generator import get_journey_generator
 
@@ -320,6 +322,172 @@ async def add_step_note(
     _save_journey(updated_journey)
     
     return {"success": True, "step": updated_step}
+
+
+@router.post("/steps/{step_id}/choose-path", response_model=GoalJourney)
+async def choose_path(
+    step_id: str,
+    request: StepChoosePath,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Choose a path (branch) at a decision step.
+
+    This updates path_type/status for the branch steps so the user's journey map
+    adapts to the selected option.
+    """
+    user_id = current_user["uid"]
+
+    decision_step = _steps_store.get(step_id)
+    if not decision_step:
+        raise HTTPException(status_code=404, detail="Step not found")
+
+    journey = _journeys_store.get(decision_step.journey_id)
+    if not journey or journey.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    chosen_step_id = request.chosen_step_id
+    chosen_step = _steps_store.get(chosen_step_id)
+    if not chosen_step:
+        raise HTTPException(status_code=404, detail="Chosen step not found")
+    if chosen_step.journey_id != journey.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Chosen step must belong to the same journey",
+        )
+
+    steps = list(journey.steps)
+    step_by_id = {s.id: s for s in steps}
+    if step_id not in step_by_id:
+        raise HTTPException(status_code=404, detail="Step not found in journey")
+
+    decision = step_by_id[step_id]
+
+    # Build adjacency: prereq_id -> [child_step_ids]
+    children_map: dict[str, list[str]] = {s.id: [] for s in steps}
+    for s in steps:
+        for prereq_id in s.prerequisites:
+            if prereq_id in children_map:
+                children_map[prereq_id].append(s.id)
+
+    # Determine option roots. Prefer explicit "alternatives" if present.
+    option_root_ids = list(decision.alternatives) if decision.alternatives else []
+    if not option_root_ids:
+        option_root_ids = children_map.get(decision.id, [])
+
+    # Clean + dedupe, preserve order.
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for opt_id in option_root_ids:
+        if opt_id == decision.id:
+            continue
+        if opt_id not in step_by_id:
+            continue
+        if opt_id in seen:
+            continue
+        cleaned.append(opt_id)
+        seen.add(opt_id)
+    option_root_ids = cleaned
+
+    if len(option_root_ids) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="This step does not have multiple paths to choose from",
+        )
+
+    if chosen_step_id not in option_root_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Chosen step is not a valid option for this decision point",
+        )
+
+    def collect_reachable(start_id: str) -> set[str]:
+        visited: set[str] = set()
+        stack: list[str] = [start_id]
+        while stack:
+            current = stack.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            for child_id in children_map.get(current, []):
+                stack.append(child_id)
+        return visited
+
+    branch_ids_by_option = {
+        opt_id: collect_reachable(opt_id) for opt_id in option_root_ids
+    }
+    affected_ids: set[str] = set()
+    for ids in branch_ids_by_option.values():
+        affected_ids |= ids
+
+    # Prevent switching after the user has started any branch step.
+    for sid in affected_ids:
+        st = step_by_id[sid]
+        if st.status in (StepStatus.IN_PROGRESS, StepStatus.COMPLETED):
+            raise HTTPException(
+                status_code=400,
+                detail="You can't change paths after starting one. Use 'Adjust Journey' instead.",
+            )
+
+    updated_steps: list[GoalStep] = []
+    for s in steps:
+        if s.id not in affected_ids:
+            updated_steps.append(s)
+            continue
+
+        in_chosen_branch = s.id in branch_ids_by_option[chosen_step_id]
+
+        if in_chosen_branch:
+            new_path_type = PathType.MAIN
+            new_status = s.status
+            if new_status == StepStatus.ALTERNATIVE:
+                new_status = StepStatus.LOCKED
+        else:
+            new_path_type = PathType.ALTERNATIVE
+            # Mark as "alternative path not taken" unless it's already completed/in progress (blocked above).
+            new_status = StepStatus.ALTERNATIVE
+
+        updated_steps.append(
+            GoalStep(
+                **{
+                    **s.model_dump(),
+                    "path_type": new_path_type,
+                    "status": new_status,
+                }
+            )
+        )
+
+    # Record the selected option on the decision step metadata for easy UI highlighting.
+    updated_steps2: list[GoalStep] = []
+    for s in updated_steps:
+        if s.id != decision.id:
+            updated_steps2.append(s)
+            continue
+        md = dict(s.metadata or {})
+        md["selected_path_step_id"] = chosen_step_id
+        updated_steps2.append(GoalStep(**{**s.model_dump(), "metadata": md}))
+
+    # If the decision step is already completed, unlock the chosen root immediately.
+    if decision.status == StepStatus.COMPLETED:
+        updated_steps2 = [
+            GoalStep(**{**s.model_dump(), "status": StepStatus.AVAILABLE})
+            if s.id == chosen_step_id
+            and s.status in (StepStatus.LOCKED, StepStatus.ALTERNATIVE)
+            else s
+            for s in updated_steps2
+        ]
+
+    updated_journey = GoalJourney(
+        **{
+            **journey.model_dump(),
+            "steps": updated_steps2,
+            "updated_at": datetime.utcnow(),
+        }
+    )
+    updated_journey = _update_journey_progress(updated_journey)
+    _save_journey(updated_journey)
+
+    return updated_journey
 
 
 # ─────────────────────────────────────────────────

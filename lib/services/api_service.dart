@@ -485,6 +485,18 @@ class ApiService {
     return response.data as Map<String, dynamic>;
   }
 
+  /// Choose a path at a decision point (updates the journey graph)
+  Future<Map<String, dynamic>> chooseJourneyPath({
+    required String decisionStepId,
+    required String chosenStepId,
+  }) async {
+    final response = await _dio.post(
+      '/journey/steps/$decisionStepId/choose-path',
+      data: {'chosen_step_id': chosenStepId},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
   /// Recalculate journey progress
   Future<Map<String, dynamic>> recalculateJourneyProgress(
     String journeyId,
