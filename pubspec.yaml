@@ -1,7 +1,7 @@
 name: pro_buddy
 description: "A goal-tracking app that monitors your app usage and helps you stay aligned with your goals."
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.1.0+3
 
 environment:
   sdk: ^3.10.1
