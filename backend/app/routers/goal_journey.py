@@ -6,8 +6,7 @@ Endpoints for managing goal journeys, steps, and AI-powered adjustments.
 
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends, Request
-import uuid
+from fastapi import APIRouter, HTTPException, Depends
 
 from ..dependencies import get_current_user
 from ..models.goal_journey import (
@@ -25,27 +24,50 @@ from ..models.goal_journey import (
     StepChoosePath,
 )
 from ..services.journey_generator import get_journey_generator
+from ..services.usage_store_service import usage_store_service
 
 router = APIRouter()
 
-# In-memory storage for development (will be replaced with D1)
-_journeys_store: dict[str, GoalJourney] = {}
-_steps_store: dict[str, GoalStep] = {}
+def _require_journey_store_configured() -> None:
+    """
+    Ensure the persistent journey store is configured.
+
+    Goal Journeys must be persisted (D1 via Worker) so progress survives backend restarts.
+    """
+    if not usage_store_service.configured:
+        raise HTTPException(
+            status_code=503,
+            detail="Goal Journey storage is not configured",
+        )
 
 
-def _get_user_journey(user_id: str) -> Optional[GoalJourney]:
-    """Get the user's active journey from storage."""
-    for journey in _journeys_store.values():
-        if journey.user_id == user_id:
-            return journey
-    return None
+async def _load_current_journey(*, user_id: str) -> Optional[GoalJourney]:
+    _require_journey_store_configured()
+    data = await usage_store_service.get_current_goal_journey(user_id=user_id)
+    if not data:
+        return None
+    return GoalJourney.model_validate(data)
 
 
-def _save_journey(journey: GoalJourney) -> None:
-    """Save a journey to storage."""
-    _journeys_store[journey.id] = journey
-    for step in journey.steps:
-        _steps_store[step.id] = step
+async def _load_journey(*, user_id: str, journey_id: str) -> GoalJourney:
+    _require_journey_store_configured()
+    data = await usage_store_service.get_goal_journey(user_id=user_id, journey_id=journey_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Journey not found")
+    return GoalJourney.model_validate(data)
+
+
+async def _load_journey_by_step(*, user_id: str, step_id: str) -> GoalJourney:
+    _require_journey_store_configured()
+    data = await usage_store_service.get_goal_journey_by_step(user_id=user_id, step_id=step_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Step not found")
+    return GoalJourney.model_validate(data)
+
+
+async def _persist_journey(journey: GoalJourney) -> None:
+    _require_journey_store_configured()
+    await usage_store_service.upsert_goal_journey(journey=journey)
 
 
 def _update_journey_progress(journey: GoalJourney) -> GoalJourney:
@@ -105,8 +127,8 @@ async def generate_journey(
             identity=request.identity,
             challenges=request.challenges,
         )
-        
-        _save_journey(journey)
+
+        await _persist_journey(journey)
         
         return JourneyGenerateResponse(
             journey=journey,
@@ -125,8 +147,7 @@ async def get_current_journey(
 ):
     """Get the user's current active journey."""
     user_id = current_user["uid"]
-    journey = _get_user_journey(user_id)
-    return journey
+    return await _load_current_journey(user_id=user_id)
 
 
 @router.get("/{journey_id}", response_model=GoalJourney)
@@ -136,15 +157,7 @@ async def get_journey(
 ):
     """Get a specific journey by ID."""
     user_id = current_user["uid"]
-    journey = _journeys_store.get(journey_id)
-    
-    if not journey:
-        raise HTTPException(status_code=404, detail="Journey not found")
-    
-    if journey.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized to view this journey")
-    
-    return journey
+    return await _load_journey(user_id=user_id, journey_id=journey_id)
 
 
 @router.delete("/{journey_id}")
@@ -154,20 +167,11 @@ async def delete_journey(
 ):
     """Delete a journey."""
     user_id = current_user["uid"]
-    journey = _journeys_store.get(journey_id)
-    
-    if not journey:
-        raise HTTPException(status_code=404, detail="Journey not found")
-    
-    if journey.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this journey")
-    
-    # Remove journey and its steps
-    del _journeys_store[journey_id]
-    for step in journey.steps:
-        if step.id in _steps_store:
-            del _steps_store[step.id]
-    
+
+    # Validate ownership/existence (returns 404 if missing/not owned).
+    await _load_journey(user_id=user_id, journey_id=journey_id)
+
+    await usage_store_service.delete_goal_journey(user_id=user_id, journey_id=journey_id)
     return {"success": True, "message": "Journey deleted"}
 
 
@@ -187,14 +191,12 @@ async def update_step_status(
     When a step is completed, the next step becomes available.
     """
     user_id = current_user["uid"]
-    step = _steps_store.get(step_id)
+
+    journey = await _load_journey_by_step(user_id=user_id, step_id=step_id)
+    step = next((s for s in journey.steps if s.id == step_id), None)
     if not step:
         raise HTTPException(status_code=404, detail="Step not found")
-    
-    journey = _journeys_store.get(step.journey_id)
-    if not journey or journey.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     now = datetime.utcnow()
     
     # Calculate actual days spent if completing
@@ -213,7 +215,6 @@ async def update_step_status(
             "notes": step.notes + ([update.notes] if update.notes else []),
         }
     )
-    _steps_store[step_id] = updated_step
     
     # Update journey steps list
     updated_steps = [
@@ -238,7 +239,6 @@ async def update_step_status(
                         updated_next if s.id == next_step.id else s
                         for s in updated_steps
                     ]
-                    _steps_store[next_step.id] = updated_next
                 break
     
     # Update journey
@@ -246,7 +246,7 @@ async def update_step_status(
         **{**journey.model_dump(), "steps": updated_steps}
     )
     updated_journey = _update_journey_progress(updated_journey)
-    _save_journey(updated_journey)
+    await _persist_journey(updated_journey)
     
     return {
         "success": True,
@@ -263,18 +263,15 @@ async def update_step_title(
 ):
     """Update the custom title of a step."""
     user_id = current_user["uid"]
-    step = _steps_store.get(step_id)
+
+    journey = await _load_journey_by_step(user_id=user_id, step_id=step_id)
+    step = next((s for s in journey.steps if s.id == step_id), None)
     if not step:
         raise HTTPException(status_code=404, detail="Step not found")
-    
-    journey = _journeys_store.get(step.journey_id)
-    if not journey or journey.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
     
     updated_step = GoalStep(
         **{**step.model_dump(), "custom_title": update.custom_title}
     )
-    _steps_store[step_id] = updated_step
     
     # Update journey
     updated_steps = [
@@ -284,7 +281,7 @@ async def update_step_title(
     updated_journey = GoalJourney(
         **{**journey.model_dump(), "steps": updated_steps, "updated_at": datetime.utcnow()}
     )
-    _save_journey(updated_journey)
+    await _persist_journey(updated_journey)
     
     return {"success": True, "step": updated_step}
 
@@ -297,19 +294,16 @@ async def add_step_note(
 ):
     """Add a note to a step."""
     user_id = current_user["uid"]
-    step = _steps_store.get(step_id)
+
+    journey = await _load_journey_by_step(user_id=user_id, step_id=step_id)
+    step = next((s for s in journey.steps if s.id == step_id), None)
     if not step:
         raise HTTPException(status_code=404, detail="Step not found")
-    
-    journey = _journeys_store.get(step.journey_id)
-    if not journey or journey.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
     
     updated_notes = step.notes + [note_request.note]
     updated_step = GoalStep(
         **{**step.model_dump(), "notes": updated_notes}
     )
-    _steps_store[step_id] = updated_step
     
     # Update journey
     updated_steps = [
@@ -319,7 +313,7 @@ async def add_step_note(
     updated_journey = GoalJourney(
         **{**journey.model_dump(), "steps": updated_steps, "updated_at": datetime.utcnow()}
     )
-    _save_journey(updated_journey)
+    await _persist_journey(updated_journey)
     
     return {"success": True, "step": updated_step}
 
@@ -338,23 +332,7 @@ async def choose_path(
     """
     user_id = current_user["uid"]
 
-    decision_step = _steps_store.get(step_id)
-    if not decision_step:
-        raise HTTPException(status_code=404, detail="Step not found")
-
-    journey = _journeys_store.get(decision_step.journey_id)
-    if not journey or journey.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    chosen_step_id = request.chosen_step_id
-    chosen_step = _steps_store.get(chosen_step_id)
-    if not chosen_step:
-        raise HTTPException(status_code=404, detail="Chosen step not found")
-    if chosen_step.journey_id != journey.id:
-        raise HTTPException(
-            status_code=400,
-            detail="Chosen step must belong to the same journey",
-        )
+    journey = await _load_journey_by_step(user_id=user_id, step_id=step_id)
 
     steps = list(journey.steps)
     step_by_id = {s.id: s for s in steps}
@@ -362,6 +340,16 @@ async def choose_path(
         raise HTTPException(status_code=404, detail="Step not found in journey")
 
     decision = step_by_id[step_id]
+
+    chosen_step_id = request.chosen_step_id
+    chosen_step = step_by_id.get(chosen_step_id)
+    if not chosen_step:
+        raise HTTPException(status_code=404, detail="Chosen step not found")
+    if chosen_step.journey_id != journey.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Chosen step must belong to the same journey",
+        )
 
     # Build adjacency: prereq_id -> [child_step_ids]
     children_map: dict[str, list[str]] = {s.id: [] for s in steps}
@@ -485,7 +473,7 @@ async def choose_path(
         }
     )
     updated_journey = _update_journey_progress(updated_journey)
-    _save_journey(updated_journey)
+    await _persist_journey(updated_journey)
 
     return updated_journey
 
@@ -505,14 +493,8 @@ async def adjust_journey(
     The AI analyzes what the user is doing and suggests path adjustments.
     """
     user_id = current_user["uid"]
-    journey = _journeys_store.get(request.journey_id)
-    
-    if not journey:
-        raise HTTPException(status_code=404, detail="Journey not found")
-    
-    if journey.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
+
+    journey = await _load_journey(user_id=user_id, journey_id=request.journey_id)
     generator = get_journey_generator()
     
     result = await generator.adjust_journey(
@@ -522,7 +504,7 @@ async def adjust_journey(
     )
     
     updated_journey = result["journey"]
-    _save_journey(updated_journey)
+    await _persist_journey(updated_journey)
     
     return JourneyAdjustmentResponse(
         journey=updated_journey,
@@ -542,16 +524,10 @@ async def recalculate_journey(
     Useful after manual edits or syncing with daily progress.
     """
     user_id = current_user["uid"]
-    journey = _journeys_store.get(journey_id)
-    
-    if not journey:
-        raise HTTPException(status_code=404, detail="Journey not found")
-    
-    if journey.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
+
+    journey = await _load_journey(user_id=user_id, journey_id=journey_id)
     updated_journey = _update_journey_progress(journey)
-    _save_journey(updated_journey)
+    await _persist_journey(updated_journey)
     
     return {
         "success": True,

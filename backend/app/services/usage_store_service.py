@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from ..config import settings
+from ..models.goal_journey import GoalJourney
 from ..models.usage import AlignmentStatus, UsageFeedback
 
 
@@ -702,9 +703,103 @@ class UsageStoreService:
             )
             resp.raise_for_status()
 
+    # ==================== Goal Journeys (Persistent Storage) ====================
+
+    async def upsert_goal_journey(self, *, journey: GoalJourney) -> None:
+        """
+        Upsert a goal journey + all steps in D1 (via the Worker).
+
+        The worker stores the journey metadata in `goal_journeys` and steps in `goal_steps`.
+        """
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload: Dict[str, Any] = {"journey": journey.model_dump(mode="json")}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._url("/v1/goal-journeys/upsert"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
+    async def get_current_goal_journey(self, *, user_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch the most recently updated goal journey for a user (or None)."""
+        if not self.configured:
+            return None
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                self._url("/v1/goal-journeys/current"),
+                headers=self._headers(),
+                params={"user_id": user_id},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            item = data.get("item")
+            if not item or not isinstance(item, dict):
+                return None
+            return item
+
+    async def get_goal_journey(
+        self, *, user_id: str, journey_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Fetch a specific goal journey by id (or None)."""
+        if not self.configured:
+            return None
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                self._url("/v1/goal-journeys/by-id"),
+                headers=self._headers(),
+                params={"user_id": user_id, "journey_id": journey_id},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            item = data.get("item")
+            if not item or not isinstance(item, dict):
+                return None
+            return item
+
+    async def get_goal_journey_by_step(
+        self, *, user_id: str, step_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Fetch the goal journey that contains a given step_id (or None)."""
+        if not self.configured:
+            return None
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                self._url("/v1/goal-journeys/by-step"),
+                headers=self._headers(),
+                params={"user_id": user_id, "step_id": step_id},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            item = data.get("item")
+            if not item or not isinstance(item, dict):
+                return None
+            return item
+
+    async def delete_goal_journey(self, *, user_id: str, journey_id: str) -> None:
+        """Delete a specific goal journey (and steps) for a user."""
+        if not self.configured:
+            raise RuntimeError("UsageStoreService is not configured")
+
+        payload = {"user_id": user_id, "journey_id": journey_id}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.request(
+                "DELETE",
+                self._url("/v1/goal-journeys"),
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+
 
 usage_store_service = UsageStoreService(
     base_url=settings.usage_store_worker_url,
     token=settings.usage_store_worker_token,
 )
-
