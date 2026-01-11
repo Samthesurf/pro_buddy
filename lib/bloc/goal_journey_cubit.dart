@@ -250,11 +250,19 @@ class GoalJourneyCubit extends Cubit<GoalJourneyState> {
         error: e,
         stackTrace: st,
       );
+
+      var errorMessage = 'Failed to update step. Please try again.';
+      if (e is ApiException) {
+        errorMessage = e.message.length > 200
+            ? '${e.message.substring(0, 200)}...'
+            : e.message;
+      }
+
       // Revert optimistic update on error
       emit(
         state.copyWith(
           journey: journey,
-          error: 'Failed to update step. Please try again.',
+          error: errorMessage,
         ),
       );
     }

@@ -4,7 +4,7 @@ Goal Journey API Router.
 Endpoints for managing goal journeys, steps, and AI-powered adjustments.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 
@@ -96,7 +96,9 @@ def _update_journey_progress(journey: GoalJourney) -> GoalJourney:
             **journey.model_dump(),
             "overall_progress": progress,
             "current_step_index": min(current_index, len(main_steps) - 1),
-            "updated_at": datetime.utcnow(),
+            # Use timezone-aware UTC timestamps to avoid mixing naive/aware datetimes
+            # (the usage-store worker normalizes timestamps to ISO-8601 with "Z").
+            "updated_at": datetime.now(timezone.utc),
         }
     )
 
@@ -197,21 +199,34 @@ async def update_step_status(
     if not step:
         raise HTTPException(status_code=404, detail="Step not found")
 
-    now = datetime.utcnow()
+    def _as_utc(dt: datetime) -> datetime:
+        """Normalize datetimes to UTC-aware for safe arithmetic/persistence."""
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    now = datetime.now(timezone.utc)
+    started_at_utc = _as_utc(step.started_at) if step.started_at else None
+    completed_at_utc = _as_utc(step.completed_at) if step.completed_at else None
     
     # Calculate actual days spent if completing
     actual_days = None
-    if update.status == StepStatus.COMPLETED and step.started_at:
-        actual_days = (now - step.started_at).days or 1
+    if update.status == StepStatus.COMPLETED and started_at_utc:
+        actual_days = (now - started_at_utc).days or 1
     
     # Update the step
     updated_step = GoalStep(
         **{
             **step.model_dump(),
             "status": update.status,
-            "started_at": step.started_at or (now if update.status == StepStatus.IN_PROGRESS else None),
-            "completed_at": now if update.status == StepStatus.COMPLETED else step.completed_at,
-            "actual_days_spent": actual_days or step.actual_days_spent,
+            "started_at": started_at_utc
+            or (now if update.status == StepStatus.IN_PROGRESS else None),
+            "completed_at": now
+            if update.status == StepStatus.COMPLETED
+            else completed_at_utc,
+            "actual_days_spent": actual_days
+            if actual_days is not None
+            else step.actual_days_spent,
             "notes": step.notes + ([update.notes] if update.notes else []),
         }
     )
@@ -279,7 +294,11 @@ async def update_step_title(
         for s in journey.steps
     ]
     updated_journey = GoalJourney(
-        **{**journey.model_dump(), "steps": updated_steps, "updated_at": datetime.utcnow()}
+        **{
+            **journey.model_dump(),
+            "steps": updated_steps,
+            "updated_at": datetime.now(timezone.utc),
+        }
     )
     await _persist_journey(updated_journey)
     
@@ -311,7 +330,11 @@ async def add_step_note(
         for s in journey.steps
     ]
     updated_journey = GoalJourney(
-        **{**journey.model_dump(), "steps": updated_steps, "updated_at": datetime.utcnow()}
+        **{
+            **journey.model_dump(),
+            "steps": updated_steps,
+            "updated_at": datetime.now(timezone.utc),
+        }
     )
     await _persist_journey(updated_journey)
     
@@ -469,7 +492,7 @@ async def choose_path(
         **{
             **journey.model_dump(),
             "steps": updated_steps2,
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc),
         }
     )
     updated_journey = _update_journey_progress(updated_journey)

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification_service.dart';
 import '../../services/notification_content.dart';
 import '../../services/api_service.dart';
+import '../../services/background_service.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -129,10 +130,70 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
         }
       }
       // Re-check status regardless of result
-      _checkPermissionStatus();
+      await _checkPermissionStatus();
+
+      // If enabled, ensure a default daily reminder is actually scheduled.
+      if (_areNotificationsEnabled) {
+        final freq = _checkInFrequency ?? await NotificationCache.loadCheckInFrequency();
+        if (freq.trim().toLowerCase() != 'never') {
+          await NotificationService.instance.scheduleDailyReminder(
+            hour: _reminderTime.hour,
+            minute: _reminderTime.minute,
+          );
+        }
+      }
     } else {
       // We can't programmatically disable OS notifications
       _showSettingsDialog(isDisable: true);
+    }
+  }
+
+  Future<void> _sendTestNotification() async {
+    // Ensure permissions first.
+    final enabled = await NotificationService.instance.areNotificationsEnabled();
+    if (!enabled) {
+      final granted = await NotificationService.instance.requestPermissions();
+      await _checkPermissionStatus();
+      if (!granted || !_areNotificationsEnabled) {
+        if (mounted) _showSettingsDialog();
+        return;
+      }
+    }
+
+    await NotificationService.instance.showCheckInReminder(
+      customMessage: 'Test notification — if you can see this, notifications are working.',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Test notification sent'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _triggerBackgroundCheckNow() async {
+    try {
+      await BackgroundService.instance.triggerImmediateCheck();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Background check queued (may take a minute)'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to queue background check: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -258,6 +319,28 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                 ? Theme.of(context).colorScheme.primary
                 : Theme.of(context).colorScheme.error,
           ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Text(
+            'Testing',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.notification_add_rounded),
+          title: const Text('Send test notification'),
+          subtitle: const Text('Verify notifications can appear on this device'),
+          onTap: _sendTestNotification,
+        ),
+        ListTile(
+          leading: const Icon(Icons.play_circle_outline_rounded),
+          title: const Text('Run background check now'),
+          subtitle: const Text('Queues a one-off WorkManager task (Android)'),
+          onTap: _triggerBackgroundCheckNow,
         ),
       ],
     );

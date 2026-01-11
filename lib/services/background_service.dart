@@ -1,4 +1,6 @@
-import 'package:flutter/foundation.dart';
+import 'dart:ui' as ui;
+
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -30,7 +32,6 @@ class BackgroundService {
 
     await Workmanager().initialize(
       backgroundTaskCallback,
-      isInDebugMode: false, // Set to true for debug logs
     );
 
     // Always register the periodic task on app start
@@ -76,13 +77,26 @@ class BackgroundService {
 /// This must be a top-level function (not a class method)
 @pragma('vm:entry-point')
 void backgroundTaskCallback() {
+  // Ensure plugin registrants are initialized for this background isolate.
+  // Without this, MethodChannel-based plugins (e.g. SharedPreferences) may throw
+  // MissingPluginException when WorkManager runs headless.
+  WidgetsFlutterBinding.ensureInitialized();
+  ui.DartPluginRegistrant.ensureInitialized();
+
   Workmanager().executeTask((taskName, inputData) async {
     try {
       debugPrint('Background task started: $taskName');
 
       if (taskName == usageCheckTask || taskName == periodicUsageCheckTask) {
         // Run both checks
-        await Future.wait([_performUsageCheck(), _checkDailyReminder()]);
+        await Future.wait([
+          _performUsageCheck().catchError((e, st) {
+            debugPrint('Usage check failed: $e');
+          }),
+          _checkDailyReminder().catchError((e, st) {
+            debugPrint('Daily reminder check failed: $e');
+          }),
+        ]);
       }
 
       return true;

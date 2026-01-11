@@ -437,11 +437,40 @@ class ApiService {
     required String status,
     String? notes,
   }) async {
-    final response = await _dio.put(
-      '/journey/steps/$stepId/status',
-      data: {'status': status, if (notes != null) 'notes': notes},
-    );
-    return response.data as Map<String, dynamic>;
+    try {
+      final response = await _dio.put(
+        '/journey/steps/$stepId/status',
+        data: {'status': status, if (notes != null) 'notes': notes},
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e, st) {
+      final statusCode = e.response?.statusCode;
+      final data = e.response?.data;
+
+      appLogger.e(
+        '[ApiService] updateStepStatus failed',
+        error: {
+          'statusCode': statusCode,
+          'data': data,
+          'method': e.requestOptions.method,
+          'path': e.requestOptions.path,
+        },
+        stackTrace: st,
+      );
+
+      String message;
+      if (data is Map && data['detail'] != null) {
+        message = data['detail'].toString();
+      } else if (data is Map && data['message'] != null) {
+        message = data['message'].toString();
+      } else if (statusCode != null) {
+        message = 'Request failed (HTTP $statusCode).';
+      } else {
+        message = 'Request failed.';
+      }
+
+      throw ApiException(message, statusCode: statusCode, data: data);
+    }
   }
 
   /// Update step custom title

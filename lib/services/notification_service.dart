@@ -4,8 +4,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+
+import 'notification_content.dart';
 
 /// Notification payload types
 enum NotificationType {
@@ -92,6 +95,7 @@ class NotificationService {
 
     // Initialize timezone data for scheduled notifications
     tz.initializeTimeZones();
+    await _configureLocalTimeZone();
 
     // Android initialization
     const androidSettings = AndroidInitializationSettings(
@@ -122,6 +126,20 @@ class NotificationService {
     }
 
     _initialized = true;
+  }
+
+  Future<void> _configureLocalTimeZone() async {
+    try {
+      final tzInfo = await FlutterTimezone.getLocalTimezone();
+      final locationName = tzInfo.identifier;
+      if (locationName.trim().isEmpty) return;
+      tz.setLocalLocation(tz.getLocation(locationName));
+      debugPrint('Local timezone set to $locationName');
+    } catch (e) {
+      // If this fails, tz.local defaults to UTC which can cause scheduled
+      // notifications to fire at unexpected times. We keep running but log it.
+      debugPrint('Failed to set local timezone: $e');
+    }
   }
 
   Future<void> _createNotificationChannels() async {
@@ -351,7 +369,9 @@ class NotificationService {
       scheduledDate,
       details,
       payload: payload.encode(),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      // Inexact alarms are more reliable across newer Android versions unless
+      // the user explicitly grants exact alarm permissions.
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time, // Repeats daily!
@@ -375,12 +395,17 @@ class NotificationService {
   /// This should be called on app start to ensure notifications persist
   Future<void> ensureDailyReminderScheduled() async {
     final prefs = await SharedPreferences.getInstance();
-    final hour = prefs.getInt('daily_reminder_hour');
-    final minute = prefs.getInt('daily_reminder_minute');
+    final hour = prefs.getInt('daily_reminder_hour') ?? 20;
+    final minute = prefs.getInt('daily_reminder_minute') ?? 0;
 
-    if (hour != null && minute != null) {
-      await scheduleDailyReminder(hour: hour, minute: minute);
+    // Respect the user's check-in frequency (if they opted out, don't schedule).
+    final checkInFrequency = await NotificationCache.loadCheckInFrequency();
+    if (checkInFrequency.trim().toLowerCase() == 'never') {
+      await cancelDailyReminder();
+      return;
     }
+
+    await scheduleDailyReminder(hour: hour, minute: minute);
   }
 
   /// Notification ID for daily reminder (constant so we can update/cancel it)
