@@ -362,163 +362,13 @@ class _GoalsScreenContent extends StatelessWidget {
     required GoalStep step,
     required bool isBusy,
   }) {
-    final theme = Theme.of(context);
-
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
-
-    switch (step.status) {
-      case StepStatus.inProgress:
-        statusColor = theme.warningColor;
-        statusIcon = Icons.play_circle_filled;
-        statusText = 'In Progress';
-        break;
-      case StepStatus.available:
-        statusColor = theme.primaryColor;
-        statusIcon = Icons.radio_button_unchecked;
-        statusText = 'Ready to Start';
-        break;
-      default:
-        statusColor = theme.mutedTextColor;
-        statusIcon = Icons.circle_outlined;
-        statusText = 'Current Step';
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(statusIcon, color: statusColor, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Current Step',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.mutedTextColor,
-                    ),
-                  ),
-                  Text(
-                    statusText,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                '~${step.estimatedDays} days',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.mutedTextColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            step.displayTitle,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          if (step.description.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              step.description,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.mutedTextColor,
-              ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-          _buildPathChoicesIfAny(
-            context,
-            journey: journey,
-            decisionStep: step,
-            isBusy: isBusy,
-          ),
-          const SizedBox(height: 16),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (step.status == StepStatus.available)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () =>
-                          context.read<GoalJourneyCubit>().startCurrentStep(),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Start Step'),
-                    ),
-                  )
-                else if (step.status == StepStatus.inProgress) ...[
-                  Expanded(
-                    flex: 3,
-                    child: OutlinedButton.icon(
-                      onPressed: () => GoalProgressDialog.show(context, step),
-                      icon: const Icon(Icons.edit_note_rounded),
-                      label: const Text(
-                        'Log Progress',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: () => context
-                          .read<GoalJourneyCubit>()
-                          .completeCurrentStep(),
-                      icon: const Icon(Icons.check_rounded),
-                      label: const Text(
-                        'Complete',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.successColor,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+    return _ExpandableCurrentStepCard(
+      step: step,
+      pathChoices: _buildPathChoicesIfAny(
+        context,
+        journey: journey,
+        decisionStep: step,
+        isBusy: isBusy,
       ),
     );
   }
@@ -890,6 +740,231 @@ class _GoalsScreenContent extends StatelessWidget {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExpandableCurrentStepCard extends StatefulWidget {
+  const _ExpandableCurrentStepCard({
+    required this.step,
+    required this.pathChoices,
+  });
+
+  final GoalStep step;
+  final Widget pathChoices;
+
+  @override
+  State<_ExpandableCurrentStepCard> createState() =>
+      _ExpandableCurrentStepCardState();
+}
+
+class _ExpandableCurrentStepCardState extends State<_ExpandableCurrentStepCard> {
+  bool _isExpanded = false;
+
+  @override
+  void didUpdateWidget(covariant _ExpandableCurrentStepCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the current step changes, default back to collapsed.
+    if (oldWidget.step.id != widget.step.id) {
+      _isExpanded = false;
+    }
+  }
+
+  void _toggleExpanded() {
+    setState(() => _isExpanded = !_isExpanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final step = widget.step;
+
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+
+    switch (step.status) {
+      case StepStatus.inProgress:
+        statusColor = theme.warningColor;
+        statusIcon = Icons.play_circle_filled;
+        statusText = 'In Progress';
+        break;
+      case StepStatus.available:
+        statusColor = theme.primaryColor;
+        statusIcon = Icons.radio_button_unchecked;
+        statusText = 'Ready to Start';
+        break;
+      default:
+        statusColor = theme.mutedTextColor;
+        statusIcon = Icons.circle_outlined;
+        statusText = 'Current Step';
+    }
+
+    return Semantics(
+      button: true,
+      toggled: _isExpanded,
+      label: _isExpanded
+          ? 'Current step expanded. Tap to collapse.'
+          : 'Current step collapsed. Tap to expand.',
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: InkWell(
+          onTap: _toggleExpanded,
+          borderRadius: BorderRadius.circular(20),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: statusColor.withValues(alpha: 0.3),
+                width: 2,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(statusIcon, color: statusColor, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Current Step',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.mutedTextColor,
+                            ),
+                          ),
+                          Text(
+                            statusText,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: statusColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      Text(
+                        '~${step.estimatedDays} days',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.mutedTextColor,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      AnimatedRotation(
+                        turns: _isExpanded ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        child: Icon(
+                          Icons.expand_more_rounded,
+                          color: theme.mutedTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    step.displayTitle,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (step.description.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      step.description,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.mutedTextColor,
+                      ),
+                      maxLines: _isExpanded ? null : 3,
+                      overflow: _isExpanded
+                          ? TextOverflow.visible
+                          : TextOverflow.ellipsis,
+                    ),
+                  ],
+                  widget.pathChoices,
+                  const SizedBox(height: 16),
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (step.status == StepStatus.available)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => context
+                                  .read<GoalJourneyCubit>()
+                                  .startCurrentStep(),
+                              icon: const Icon(Icons.play_arrow_rounded),
+                              label: const Text('Start Step'),
+                            ),
+                          )
+                        else if (step.status == StepStatus.inProgress) ...[
+                          Expanded(
+                            flex: 3,
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  GoalProgressDialog.show(context, step),
+                              icon: const Icon(Icons.edit_note_rounded),
+                              label: const Text(
+                                'Log Progress',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              onPressed: () => context
+                                  .read<GoalJourneyCubit>()
+                                  .completeCurrentStep(),
+                              icon: const Icon(Icons.check_rounded),
+                              label: const Text(
+                                'Complete',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.successColor,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

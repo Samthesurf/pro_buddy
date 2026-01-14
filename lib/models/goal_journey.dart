@@ -335,16 +335,25 @@ class GoalJourney {
 
   /// Get the current active step
   GoalStep? get currentStep {
-    if (currentStepIndex >= 0 && currentStepIndex < mainPath.length) {
-      return mainPath[currentStepIndex];
+    final path = mainPath;
+    if (path.isEmpty) return null;
+
+    // Prefer the step that is explicitly in progress (this is what the map uses).
+    for (final step in path) {
+      if (step.status == StepStatus.inProgress) return step;
     }
-    return mainPath.firstWhere(
-      (s) => s.status == StepStatus.inProgress,
-      orElse: () => mainPath.firstWhere(
-        (s) => s.status == StepStatus.available,
-        orElse: () => mainPath.first,
-      ),
-    );
+
+    // Otherwise fall back to the first available (next actionable) step.
+    for (final step in path) {
+      if (step.status == StepStatus.available) return step;
+    }
+
+    // If statuses are not set, fall back to the backend-provided index.
+    if (currentStepIndex >= 0 && currentStepIndex < path.length) {
+      return path[currentStepIndex];
+    }
+
+    return path.first;
   }
 
   /// Get completed steps

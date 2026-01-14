@@ -211,6 +211,7 @@ class _GoalJourneyScreenState extends State<GoalJourneyScreen> {
               // For now we animate every time the map builds which might be too much if it rebuilds often.
               // However, PathDrawAnimation is stateful and will only run once on init.
               return PathDrawAnimation(
+                key: ValueKey('path_anim_${step.id}'),
                 delay: Duration(milliseconds: index * 200),
                 child: Column(
                   children: [

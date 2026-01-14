@@ -41,7 +41,8 @@ class _NodeUnlockAnimationState extends State<NodeUnlockAnimation>
     ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
     if (widget.isUnlocked) {
-      _controller.forward();
+      // Don't animate on init - only when status changes
+      // _controller.forward();
     }
   }
 
