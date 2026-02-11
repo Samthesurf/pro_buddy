@@ -1,4 +1,4 @@
-/// App selection and classification models
+// App selection and classification models
 
 /// Represents an installed app on the device
 class InstalledApp {

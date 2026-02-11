@@ -1,4 +1,4 @@
-/// Models for the goal discovery / notification profile flow.
+// Models for the goal discovery / notification profile flow.
 
 class NotificationProfile {
   final String? identity;

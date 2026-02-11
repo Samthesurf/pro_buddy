@@ -1,4 +1,4 @@
-/// Goal data model
+// Goal data model
 
 class Goal {
   final String id;

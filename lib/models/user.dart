@@ -1,4 +1,4 @@
-/// User data model
+// User data model
 
 class User {
   final String id;

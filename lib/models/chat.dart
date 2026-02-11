@@ -1,4 +1,4 @@
-/// Chat models for progress conversations with AI.
+// Chat models for progress conversations with AI.
 
 enum MessageRole { user, assistant }
 

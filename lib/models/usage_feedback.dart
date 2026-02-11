@@ -1,4 +1,4 @@
-/// Models for app usage monitoring and feedback
+// Models for app usage monitoring and feedback
 
 /// Represents an app usage event
 class AppUsageEvent {

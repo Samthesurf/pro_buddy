@@ -1,7 +1,7 @@
-/// Goal Journey data models for the Goals feature.
-///
-/// These models represent the user's journey toward their primary goal,
-/// including steps, progress tracking, and the gamified map visualization.
+// Goal Journey data models for the Goals feature.
+//
+// These models represent the user's journey toward their primary goal,
+// including steps, progress tracking, and the gamified map visualization.
 
 import 'dart:ui' show Offset;
 

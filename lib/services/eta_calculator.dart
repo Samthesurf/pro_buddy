@@ -1,8 +1,8 @@
-/// ETA (Estimated Time of Achievement) Calculator
-///
-/// Calculates the estimated time to complete a goal journey entirely on
-/// the client side, without requiring any API calls. The calculation is
-/// based on the user's actual performance vs AI-estimated durations.
+// ETA (Estimated Time of Achievement) Calculator
+//
+// Calculates the estimated time to complete a goal journey entirely on
+// the client side, without requiring any API calls. The calculation is
+// based on the user's actual performance vs AI-estimated durations.
 
 import '../models/goal_journey.dart';
 
