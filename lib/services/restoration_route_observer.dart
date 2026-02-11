@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
-import 'restoration_service.dart';
+import '../bloc/navigation_cubit.dart';
 
 /// Custom RouteObserver that tracks route changes for state restoration
 class RestorationRouteObserver extends RouteObserver<PageRoute<dynamic>> {
+  final NavigationCubit navigationCubit;
+
+  RestorationRouteObserver(this.navigationCubit);
+
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     super.didPush(route, previousRoute);
@@ -46,7 +50,7 @@ class RestorationRouteObserver extends RouteObserver<PageRoute<dynamic>> {
           args = route.settings.arguments as Map<String, dynamic>;
         }
 
-        RestorationService.saveRoute(routeName, arguments: args);
+        navigationCubit.setLastRoute(routeName, args: args);
       }
     }
   }

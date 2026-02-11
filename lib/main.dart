@@ -3,12 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:hydrated_bloc/hydrated_bloc.dart';
+import 'package:path_provider/path_provider.dart';
 import 'firebase_options.dart';
 
 import 'bloc/auth_cubit.dart';
 import 'bloc/auth_state.dart';
 import 'bloc/chat_cubit.dart';
 import 'bloc/goal_journey_cubit.dart';
+import 'bloc/navigation_cubit.dart';
 import 'bloc/progress_score_cubit.dart';
 import 'bloc/theme_cubit.dart';
 import 'core/core.dart';
@@ -34,6 +37,11 @@ Future<void> main() async {
   // Initialize Firebase with generated options
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  // Initialize HydratedStorage
+  HydratedBloc.storage = await HydratedStorage.build(
+    storageDirectory: await getApplicationDocumentsDirectory(),
+  );
+
   // Initialize notification service with tap handler
   await NotificationService.instance.initialize(onTap: _handleNotificationTap);
 
@@ -49,6 +57,7 @@ Future<void> main() async {
         BlocProvider(create: (_) => ThemeCubit()),
         BlocProvider(create: (_) => AuthCubit()),
         BlocProvider(create: (_) => ChatCubit()),
+        BlocProvider(create: (_) => NavigationCubit()),
         BlocProvider(create: (_) => ProgressScoreCubit()..loadLatest()),
         BlocProvider(create: (_) => GoalJourneyCubit()..loadJourney()),
       ],
@@ -136,7 +145,7 @@ class _ProBuddyAppState extends State<ProBuddyApp> with WidgetsBindingObserver {
 
           // Track route changes for restoration
           navigatorObservers: [
-            RestorationRouteObserver(),
+            RestorationRouteObserver(context.read<NavigationCubit>()),
             FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
           ],
         );
@@ -155,55 +164,29 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _didNavigate = false;
   AuthStatus? _previousStatus;
-  bool _isRestoringState = false;
 
   @override
   void initState() {
     super.initState();
+    // Check current state in case we missed the initial emission
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkForRestoration();
+      final state = context.read<AuthCubit>().state;
+      if (state.status != AuthStatus.initial) {
+        _checkAuth(state);
+      }
     });
   }
 
-  /// Check if we should restore from a previous session
-  Future<void> _checkForRestoration() async {
-    if (!mounted) return;
-
-    final shouldRestore = await RestorationService.shouldRestore();
-
-    if (shouldRestore) {
-      // Try to restore to the last route
-      final lastRoute = await RestorationService.getLastRoute();
-      final lastRouteArgs = await RestorationService.getLastRouteArguments();
-
-      if (lastRoute != null && mounted) {
-        appLogger.i('Restoring to last route: $lastRoute');
-        _isRestoringState = true;
-        _didNavigate = true;
-
-        // Navigate to the last route
-        Navigator.of(
-          context,
-        ).pushReplacementNamed(lastRoute, arguments: lastRouteArgs);
-        return;
-      }
-    }
-
-    // No restoration needed, proceed with normal auth check
-    final state = context.read<AuthCubit>().state;
-    _checkAuth(state);
-  }
-
   Future<void> _checkAuth(AuthState state) async {
-    if (!mounted || _isRestoringState) return;
+    if (!mounted) return;
 
     // If status changed from authenticated to unauthenticated, user signed out
     // Reset navigation flag and navigate to sign-in
     if (_previousStatus == AuthStatus.authenticated &&
         state.status == AuthStatus.unauthenticated) {
       _didNavigate = false; // Reset so we can navigate again
-      // Clear restoration data on logout
-      await RestorationService.markProperShutdown();
+      // Clear saved route on logout
+      context.read<NavigationCubit>().clearRoute();
     }
 
     _previousStatus = state.status;
@@ -211,19 +194,30 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (_didNavigate) return;
 
     if (state.status == AuthStatus.authenticated) {
+      _didNavigate = true;
+      
+      // Check for saved route first (Restoration via HydratedCubit)
+      final navState = context.read<NavigationCubit>().state;
+      if (navState.lastRoute != null) {
+        appLogger.i('Restoring to last route: ${navState.lastRoute}');
+        Navigator.of(context).pushReplacementNamed(
+          navState.lastRoute!,
+          arguments: navState.lastArgs,
+        );
+        return;
+      }
+
       // Check if user has completed onboarding
       if (state.isOnboardingComplete) {
         // User has completed onboarding - go to dashboard
-        _didNavigate = true;
         Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
-        // Save this route for restoration
-        await RestorationService.saveRoute(AppRoutes.dashboard);
+        // Save this route as base
+        context.read<NavigationCubit>().setLastRoute(AppRoutes.dashboard);
       } else {
         // User is authenticated but hasn't completed onboarding
         // Send them to app selection (they can skip if they want)
-        _didNavigate = true;
         Navigator.of(context).pushReplacementNamed(AppRoutes.appSelection);
-        await RestorationService.saveRoute(AppRoutes.appSelection);
+        context.read<NavigationCubit>().setLastRoute(AppRoutes.appSelection);
       }
     } else if (state.status == AuthStatus.unauthenticated) {
       // Onboarding is only for truly new installs. Returning (logged-out) users
@@ -236,8 +230,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
           ? AppRoutes.signIn
           : AppRoutes.onboardingSplash;
       Navigator.of(context).pushReplacementNamed(route);
-      // Don't save auth routes for restoration - always start fresh on these
-      await RestorationService.markProperShutdown();
     }
   }
 
