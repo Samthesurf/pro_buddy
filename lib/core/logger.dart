@@ -15,4 +15,3 @@ final Logger appLogger = Logger(
     printTime: false,
   ),
 );
-

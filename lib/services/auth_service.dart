@@ -9,12 +9,17 @@ class AuthService {
   static AuthService get instance => _instance;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  Future<void>? _googleSignInInitialization;
 
   AuthService._();
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
+
+  Future<void> _ensureGoogleSignInInitialized() {
+    return _googleSignInInitialization ??= _googleSignIn.initialize();
+  }
 
   /// Sign in with Email and Password
   Future<UserCredential> signInWithEmail({
@@ -67,19 +72,39 @@ class AuthService {
   /// Sign in with Google
   Future<UserCredential?> signInWithGoogle() async {
     try {
+      await _ensureGoogleSignInInitialized();
+
+      if (!_googleSignIn.supportsAuthenticate()) {
+        final userCredential = await _auth.signInWithProvider(
+          GoogleAuthProvider(),
+        );
+        await _syncWithBackend();
+        return userCredential;
+      }
+
       // Trigger the authentication flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null; // User canceled
+      late final GoogleSignInAccount googleUser;
+      try {
+        googleUser = await _googleSignIn.authenticate();
+      } on GoogleSignInException catch (e) {
+        if (e.code == GoogleSignInExceptionCode.canceled) {
+          return null; // User canceled
+        }
+        rethrow;
+      }
 
       // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null) {
+        throw FirebaseAuthException(
+          code: 'missing-google-id-token',
+          message: 'Google sign-in did not return an ID token.',
+        );
+      }
 
       // Create a new credential
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
+      final credential = GoogleAuthProvider.credential(idToken: idToken);
 
       // Once signed in, return the UserCredential
       final userCredential = await _auth.signInWithCredential(credential);
@@ -104,6 +129,7 @@ class AuthService {
       // for existing users - we'll check that when they sign back in.
       await OnboardingStorage.clearOnboardingState();
 
+      await _ensureGoogleSignInInitialized();
       await _googleSignIn.signOut();
       await _auth.signOut();
     } catch (e) {

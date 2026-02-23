@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
@@ -39,7 +40,11 @@ Future<void> main() async {
 
   // Initialize HydratedStorage
   HydratedBloc.storage = await HydratedStorage.build(
-    storageDirectory: await getApplicationDocumentsDirectory(),
+    storageDirectory: kIsWeb
+        ? HydratedStorageDirectory.web
+        : HydratedStorageDirectory(
+            (await getApplicationDocumentsDirectory()).path,
+          ),
   );
 
   // Initialize notification service with tap handler
@@ -195,7 +200,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     if (state.status == AuthStatus.authenticated) {
       _didNavigate = true;
-      
+
       // Check for saved route first (Restoration via HydratedCubit)
       final navState = context.read<NavigationCubit>().state;
       if (navState.lastRoute != null) {
